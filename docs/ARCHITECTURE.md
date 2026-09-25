@@ -76,13 +76,14 @@ ParamWeaveNodeId : App::PropertyString
 
 This makes node-to-object lookup stable even if object labels change.
 
-Recommended future behavior:
+Current behavior:
 
-- non-terminal generated nodes default hidden;
-- terminal shape outputs default visible;
-- allow the user to pin/show intermediates;
-- deleting a graph node should prompt/define what happens to its generated object;
-- do not delete user-owned referenced objects.
+- only node specs with `generates_object=True` get a generated object (reference nodes do not);
+- non-terminal generated objects are hidden on evaluation; terminal outputs are created visible;
+- deleting a graph node deletes its generated object unless another object depends on it;
+- user-owned referenced objects are never deleted.
+
+Future: let the user pin/show intermediates from the node.
 
 ## Node registry
 
@@ -165,27 +166,31 @@ Resolution policy:
 4. accept automatic recovery only above a strict confidence threshold and with a unique best match;
 5. otherwise mark the node broken and require user repair.
 
-The starter only implements a conservative approximation of steps 1–3. Improve this before depending on references for production designs.
+Steps 1–5 are implemented conservatively: recovery requires a unique candidate
+within `RECOVERY_TOLERANCE`, is reported as a node warning, and never rewrites the
+stored reference. Exact-name hits are trusted even if the geometry behind the
+name changed — improve this with FreeCAD's element maps before depending on
+references for production designs.
 
 ## Undo/redo
 
-This is an explicit early-design task. Graph changes should eventually participate in FreeCAD document transactions, but a Qt graphics command stack must not diverge from document state.
-
-Preferred direction:
+Implemented as FreeCAD document transactions (see `DECISIONS.md`, 2026-09-25):
 
 ```text
-user graph mutation
+user graph action (scene/panel emits a request)
      ↓
-FreeCAD transaction
+GraphWorkspace.edit("…")  → document.openTransaction("ParamWeave: …")
      ↓
 mutate GraphModel
      ↓
-persist GraphJSON
+persist GraphJSON  → commitTransaction (abort + reload model on error)
      ↓
 update GUI
 ```
 
-Investigate `openTransaction`, `commitTransaction`, and document observers. Do not bolt an independent permanent undo history onto the graph UI without reconciling it with FreeCAD undo.
+Undo/redo restores `GraphJSON`; the document observer then reloads the model.
+There is no separate graph undo stack, so graph and document history cannot
+diverge. Evaluation is one transaction too.
 
 ## Qt compatibility
 

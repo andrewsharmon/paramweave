@@ -30,15 +30,23 @@ Run and harden the existing starter under **FreeCAD 1.1.3 stable on macOS**.
 
 Do not begin solver, CAM, or LinuxCNC/HAL integration until the base graph/CAD interaction is stable.
 
-## Important known limitations in the starter
+## Known limitations after the first hardening pass (2026-09-25)
+
+Resolved: document switching/closing corruption, property-panel crash, undo/redo
+(now FreeCAD transactions), per-pixel move persistence, reference nodes creating
+geometry copies, intermediates always visible, silent ambiguous recovery, modal
+error dialogs, malformed-data overwrite. See `docs/DECISIONS.md` and `docs/COMPATIBILITY.md`.
+
+Still open:
 
 - Port connection is click-output then click-input, not drag-to-wire yet.
-- Undo/redo is not integrated with FreeCAD transactions yet.
-- Topological recovery is deliberately conservative and provisional.
-- Graph changes are persisted frequently; movement persistence should eventually be debounced/transactional.
-- Generated intermediate shapes are not yet intelligently hidden.
+- Evaluation always recomputes the whole graph (no dirty propagation yet — M3).
+- Reference recovery is signature-based; exact-name hits are trusted even if the
+  geometry behind a renumbered name changed (needs FreeCAD element maps — M5).
 - Node parameters use basic text editing rather than FreeCAD quantity/unit widgets.
 - No schema migration framework exists beyond rejecting unsupported versions.
-- No document observer yet automatically rebinds the graph when the active document changes while the workbench stays open.
+- No node search, copy/paste, duplicate, or frame/comment nodes yet (M4).
+- The embedded `ParamWeave Graph Data` object is visible in the tree (no custom view provider yet).
+- Only verified on FreeCAD 1.1.3 macOS arm64.
 
 Treat these as planned work, not reasons to redesign the core boundaries.

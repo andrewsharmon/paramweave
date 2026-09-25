@@ -33,66 +33,88 @@ The starter contains:
 - pure-Python unit tests for graph serialization and dependency ordering;
 - design/architecture/roadmap documents intended for a coding agent.
 
-The code is deliberately a **starter**, not a production-ready workbench. The first coding-agent task is to run and harden it inside FreeCAD 1.1.3 on macOS.
+The code is deliberately a **starter**, not a production-ready workbench. The first hardening pass on FreeCAD 1.1.3/macOS is done (see below); M3 dirty propagation and the M4 editing features are next.
 
-## Quick developer install on macOS
+## Current status
 
-1. Start FreeCAD and open **View → Panels → Python console**.
-2. Evaluate:
+The starter has been run and hardened on **FreeCAD 1.1.3 / macOS arm64** (see
+[`docs/COMPATIBILITY.md`](docs/COMPATIBILITY.md) for exact versions). Verified by
+automated tests:
 
-   ```python
-   App.getUserAppDataDir()
-   ```
+- workbench loads; one dock on the right; toggle works; no duplicate docks or
+  observers after repeated workbench switches;
+- the graph follows the active document (open, close, switch) and is only ever
+  written to the document it belongs to; viewing a document never modifies it;
+- graph edits (add, connect, move, rename, parameter edit, delete) are FreeCAD
+  transactions, so **Edit → Undo/Redo** covers them;
+- Box/Cylinder → Cut/Fuse/Translate evaluate to ordinary `Part::Feature`
+  objects that are updated in place; intermediates are hidden;
+- node status badges: `✕ error`, `… blocked` (upstream failed), `! check`
+  (reference recovered geometrically), `? unknown` (unregistered type);
+- whole-object/face/edge/vertex references, including objects nested in
+  containers; graph ↔ viewport selection sync in both directions without
+  collapsing multi-selection; deleted geometry marks references broken;
+  ambiguous recovery is refused;
+- malformed or unknown embedded graph data is surfaced and never overwritten.
 
-3. Under that directory, create `Mod` if needed.
-4. Copy or symlink the included `ParamWeave/` directory into:
+## Developer install
 
-   ```text
-   <FreeCAD user app data>/Mod/ParamWeave
-   ```
+```bash
+python3 tools/install_dev.py      # symlinks ParamWeave/ into FreeCAD's user Mod directory
+```
 
-   On a typical macOS installation this is under:
+On FreeCAD 1.1 the user Mod directory is versioned — on macOS
+`~/Library/Application Support/FreeCAD/v1-1/Mod`. If in doubt, run
+`App.getUserAppDataDir()` in FreeCAD's Python console and pass
+`--mod-dir <that>/Mod`. Use `--copy` where symlinks are unavailable. Restart
+FreeCAD, then select **ParamWeave** from the workbench selector.
 
-   ```text
-   ~/Library/Application Support/FreeCAD/Mod/ParamWeave
-   ```
+## Testing
 
-5. Restart FreeCAD.
-6. Select **ParamWeave** from the workbench dropdown.
-7. Open/create a document. The graph dock should appear on the right.
+```bash
+python3 -m unittest discover -s tests -v   # pure graph core; no FreeCAD needed
+python3 tools/run_freecad_tests.py         # FreeCAD console (freecadcmd) suite
+python3 tools/run_freecad_tests.py --gui   # GUI smoke test; opens FreeCAD for ~15 s
+```
 
-For Windows/Linux, do not hard-code paths. Use `App.getUserAppDataDir()` and place `ParamWeave` beneath its `Mod` directory.
+The FreeCAD runners use a throwaway user profile, so your real FreeCAD
+settings are never touched.
 
-## First manual smoke test
+## Manual walkthrough
 
-1. Create a new FreeCAD document.
-2. Activate ParamWeave.
-3. Add a **Box** graph node with the toolbar/menu command.
-4. Add a **Cylinder** graph node.
-5. Add a **Cut** graph node.
-6. Connect `Box.shape → Cut.base` and `Cylinder.shape → Cut.tool` by clicking the output port and then the input port.
-7. Select the Cut node and press **Evaluate Graph**.
-8. Confirm ordinary `Part::Feature` objects appear under `ParamWeave Generated`.
-9. Save, close, and reopen the `.FCStd`; verify graph nodes and connections return.
-10. Select a face of any FreeCAD shape and invoke **Reference From Selection**; confirm a reference node appears and selecting that node re-highlights the referenced geometry.
+1. Create a new document and activate ParamWeave; the graph dock opens on the right.
+2. Add **Box**, **Cylinder** and **Cut** nodes (toolbar, menu, or right-click the empty canvas).
+3. Click `Box.shape` then `Cut.base`; click `Cylinder.shape` then `Cut.tool`
+   (Esc or a click on empty canvas cancels a pending wire).
+4. Press **Evaluate** in the dock. `Part::Feature` objects appear under
+   **ParamWeave Generated**; only the Cut result is visible.
+5. Select the Box node and change `length` in the property panel; Evaluate again —
+   the same objects update. Try a negative value to see `✕ error` / `… blocked`.
+6. Select a face of any shape in the 3D view and use **Reference From Selection**.
+   Clicking the reference node highlights the face; clicking the face selects the node.
+7. **Edit → Undo** steps back through graph edits. Save, close and reopen: the graph returns.
+
+Graph shortcuts: Delete/Backspace removes selected nodes or wires, `F` frames
+all, mouse wheel zooms, middle-drag pans.
 
 ## Repository layout
 
 ```text
-freecad-paramweave-starter/
-├── AGENTS.md
+paramweave/
+├── AGENTS.md                   # rules for coding agents (read first)
+├── CLAUDE.md
 ├── README.md
 ├── LICENSE_STATUS.md
-├── docs/
-├── tests/
-├── tools/
+├── docs/                       # architecture, data model, decisions, compatibility
+├── tests/                      # pure unit tests; freecad/ (console) and gui/ (smoke) suites
+├── tools/                      # install_dev.py, run_freecad_tests.py, helpers
 └── ParamWeave/                 # copy/symlink this directory into FreeCAD's Mod directory
     ├── Init.py
     ├── InitGui.py
     ├── package.xml.template
     └── paramweave/
         ├── app/              # graph model, persistence, references, evaluator
-        ├── gui/              # dock, graph scene, Qt items, selection sync
+        ├── gui/              # dock, graph scene, Qt items, selection/document sync
         ├── nodes/            # node specs/evaluators
         └── resources/
 ```

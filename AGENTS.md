@@ -122,7 +122,15 @@ Pure graph tests must run with ordinary Python:
 python -m unittest discover -s tests -v
 ```
 
-FreeCAD integration tests should eventually be runnable using FreeCAD's console executable where supported. Do not make ordinary unit tests require a GUI.
+FreeCAD integration tests run through FreeCAD itself with a throwaway user profile:
+
+```bash
+python3 tools/run_freecad_tests.py         # console suite via freecadcmd (tests/freecad/fc_test_*.py)
+python3 tools/run_freecad_tests.py --gui   # GUI smoke test (tests/gui/gui_smoke.py); opens a window
+```
+
+Do not make ordinary unit tests require a GUI. Add a GUI smoke check for any
+GUI bug you fix, and record newly tested environments in `docs/COMPATIBILITY.md`.
 
 ## Security / trust boundary
 

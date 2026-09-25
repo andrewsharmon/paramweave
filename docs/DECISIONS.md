@@ -47,3 +47,34 @@ Preference is maximally permissive while compatible. Avoid unnecessary copyleft/
 **Decision:** Start with the Qt graphics primitives already available inside FreeCAD rather than depending on NodeGraphQt.
 
 Rationale: fewer installation/version problems, especially during FreeCAD's Qt6 transition; the graph view remains replaceable.
+
+## 2026-09-25 first hardening pass
+
+### Repository
+**Decision:** The project lives in `~/git/paramweave` (renamed from `freecad-paramweave-starter`) as its own git repository on `main`. No remote yet — publishing waits for a license decision.
+
+### Undo/redo
+**Decision:** Graph edits are FreeCAD document transactions, not a separate Qt undo stack.
+
+Every mutation goes through `GraphWorkspace.edit()`, which opens a `ParamWeave: <action>` transaction (unless one is already active), mutates the model and writes `GraphJSON`. FreeCAD's Undo/Redo restores the property; the workspace reloads the model on `slotUndoDocument`/`slotRedoDocument`. Evaluation is its own transaction, so undoing it removes/restores generated objects. Node moves are persisted once on mouse release.
+
+### Document binding
+**Decision:** The workspace binds to exactly one document (by internal `Name`) and only writes there.
+
+An App document observer schedules a rebind on create/activate/restore and drops the binding synchronously on delete. Loading never creates the store object; it is created on the first real edit. If embedded JSON fails validation, editing is disabled for that document and the data is left untouched.
+
+### Scene is a view
+**Decision:** `GraphScene` and `PropertyPanel` never mutate the model; they emit requests (connect, move, delete, edit parameter/label) that the workspace applies.
+
+### Generated objects
+**Decision:** Only nodes whose spec sets `generates_object=True` get a `Part::Feature`; reference nodes never copy referenced geometry.
+
+A generated object is created visible only if its node is terminal (no generating consumer); intermediates are hidden on each evaluation, terminal outputs keep the user's visibility. Deleting a node deletes its generated object unless another document object depends on it, in which case it is kept and a warning is printed.
+
+### Reference recovery
+**Decision:** Geometric recovery must be unique: if more than one candidate is within `RECOVERY_TOLERANCE`, resolution fails as ambiguous.
+
+A successful recovery never rewrites the stored reference; the node shows a `! check` warning naming the old and substituted sub-element. Exact-name resolution does not yet verify that the named sub-element is still the same geometry (topological naming problem; see M5).
+
+### Unknown node types
+**Decision:** Unregistered `type_id`s load as inert placeholder nodes (ports inferred from edges), are never evaluated, and are saved back unchanged.
