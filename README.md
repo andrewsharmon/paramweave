@@ -37,6 +37,8 @@ The code is deliberately a **starter**, not a production-ready workbench. The fi
 
 ## Current status
 
+![ParamWeave dock showing error and blocked node states](docs/images/graph-dock-status.png)
+
 The starter has been run and hardened on **FreeCAD 1.1.3 / macOS arm64** (see
 [`docs/COMPATIBILITY.md`](docs/COMPATIBILITY.md) for exact versions). Verified by
 automated tests:

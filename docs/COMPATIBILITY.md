@@ -4,7 +4,7 @@
 
 | Date | Platform | FreeCAD | Python | Qt | PySide | OCC | Result |
 |---|---|---|---|---|---|---|---|
-| 2026-09-25 | macOS 15.2 (Darwin 24.2.0), Apple Silicon (arm64) | 1.1.3 (build 20260725, git `145529fe`) | 3.11.14 (conda-forge) | 6.8.3 | PySide6 6.8.3 via FreeCAD's `PySide` shim | 7.8.1 | Console suite 22/22, GUI smoke 23/23 (3 consecutive runs) |
+| 2026-09-25 | macOS 15.2 (Darwin 24.2.0), Apple Silicon (arm64) | 1.1.3 (build 20260725, git `145529fe`) | 3.11.14 (conda-forge) | 6.8.3 | PySide6 6.8.3 via FreeCAD's `PySide` shim | 7.8.1 | Pure 22/22, console suite 22/22, GUI smoke 24/24 |
 
 Versions were read from the running FreeCAD (`App.Version()`, `sys.version`,
 `QtCore.qVersion()`, `PySide6.__version__`, `Part.OCC_VERSION`). Reproduce with

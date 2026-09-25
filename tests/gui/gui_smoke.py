@@ -302,6 +302,20 @@ def _typed_ports():
     w.persist()
 
 
+@check("frame all shows every node, including ones added after the last rebuild")
+def _frame_all():
+    w = ws()
+    far = w.add_node("primitive.box", position=(900.0, 700.0))
+    pump()
+    w.view.frame_all()
+    pump()
+    visible = w.view.mapToScene(w.view.viewport().rect()).boundingRect()
+    for node_id, item in w.scene.node_items.items():
+        expect(visible.contains(item.sceneBoundingRect()), f"{item.graph_node.label} outside view {visible}")
+    w.delete([far.id])
+    pump()
+
+
 @check("evaluation creates ordinary Part::Feature objects")
 def _evaluate():
     w = ws()
@@ -421,7 +435,6 @@ def _drag_node():
     pump()
     start = view.mapFromScene(start_scene)
     types = getattr(QtCore.QEvent, "Type", QtCore.QEvent)
-    undo_before = doc.UndoCount
     old_pos = list(w.model.nodes[cut.id].position)
     send_mouse(view, types.MouseButtonPress, start, left_button(), left_button())
     for step in range(1, 6):
@@ -432,7 +445,10 @@ def _drag_node():
     stored = json.loads(doc.getObject("ParamWeaveGraph").GraphJSON)
     stored_pos = [n["position"] for n in stored["nodes"] if n["id"] == cut.id][0]
     expect(stored_pos == new_pos, f"stored position {stored_pos} != model {new_pos}")
-    expect(doc.UndoCount == undo_before + 1, f"drag created {doc.UndoCount - undo_before} undo steps")
+    # UndoCount saturates at FreeCAD's max stack size, so inspect the top entries.
+    names = list(doc.UndoNames)
+    expect(names and names[0] == "ParamWeave: Move node", f"top undo entry {names[:1]}")
+    expect(len(names) < 2 or names[1] != "ParamWeave: Move node", f"drag recorded several move steps: {names[:3]}")
     return f"{old_pos} -> {new_pos}"
 
 

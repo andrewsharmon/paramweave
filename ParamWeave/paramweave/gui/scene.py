@@ -29,6 +29,7 @@ class GraphScene(QtWidgets.QGraphicsScene):
         self._statuses = {}
         self._moved = set()
         self._quiet = 0
+        self._has_rect = False
         self.selectionChanged.connect(self._emit_node_selection)
 
     # -- model projection -------------------------------------------------
@@ -42,6 +43,7 @@ class GraphScene(QtWidgets.QGraphicsScene):
         selected = set(self.selected_node_ids())
         with self.quiet():
             self.clear()
+            self._has_rect = False
             self.node_items = {}
             self.edge_items = {}
             self.pending_port = None
@@ -53,8 +55,15 @@ class GraphScene(QtWidgets.QGraphicsScene):
                     self._add_edge_item(edge)
                 for node_id in selected & set(self.node_items):
                     self.node_items[node_id].setSelected(True)
-            self.setSceneRect(self.itemsBoundingRect().adjusted(-400, -400, 400, 400))
+            self.grow_scene_rect()
         self.nodeSelectionChanged.emit(self.selected_node_ids(), False)
+
+    def grow_scene_rect(self):
+        """Keep a pan margin around all items; grow (never shrink) as nodes are added/moved."""
+        padded = self.itemsBoundingRect().adjusted(-400, -400, 400, 400)
+        current = self.sceneRect() if self._has_rect else QtCore.QRectF()
+        self.setSceneRect(padded if current.isNull() else current.united(padded))
+        self._has_rect = True
 
     def _add_node_item(self, node):
         spec = registry.find(node.type_id) or placeholder_spec(node.id, node.type_id, self.model)
@@ -68,6 +77,7 @@ class GraphScene(QtWidgets.QGraphicsScene):
 
     def add_node(self, node):
         item = self._add_node_item(node)
+        self.grow_scene_rect()
         self.clearSelection()
         item.setSelected(True)
         return item
@@ -131,6 +141,7 @@ class GraphScene(QtWidgets.QGraphicsScene):
                 moved[node_id] = (float(item.pos().x()), float(item.pos().y()))
         self._moved = set()
         if moved:
+            self.grow_scene_rect()
             self.nodesMoved.emit(moved)
 
     # -- wiring -----------------------------------------------------------
