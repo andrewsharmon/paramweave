@@ -2,15 +2,30 @@
 
 from __future__ import annotations
 
+import math
+
 import FreeCAD as App
 import Part
 
 from paramweave.app.references import resolve_reference
+from paramweave.constants import REFERENCE_NODE_TYPE
 from paramweave.nodes.registry import NodeSpec, PortSpec, registry
 
 
+def _number(value, name: str) -> float:
+    if isinstance(value, bool):
+        raise ValueError(f"{name} must be a number")
+    try:
+        v = float(value)
+    except (TypeError, ValueError) as exc:
+        raise ValueError(f"{name} must be a number, got {value!r}") from exc
+    if not math.isfinite(v):
+        raise ValueError(f"{name} must be finite")
+    return v
+
+
 def _positive(value, name: str) -> float:
-    v = float(value)
+    v = _number(value, name)
     if v <= 0:
         raise ValueError(f"{name} must be > 0")
     return v
@@ -46,7 +61,7 @@ def _require(inputs, name: str):
 def eval_translate(_doc, node, inputs):
     shape = _require(inputs, "shape").copy()
     p = node.params
-    shape.translate(App.Vector(float(p.get("x", 0.0)), float(p.get("y", 0.0)), float(p.get("z", 0.0))))
+    shape.translate(App.Vector(_number(p.get("x", 0.0), "x"), _number(p.get("y", 0.0), "y"), _number(p.get("z", 0.0), "z")))
     return {"shape": shape}
 
 
@@ -63,11 +78,17 @@ def eval_reference(doc, node, _inputs):
     if not ref:
         raise ValueError("Reference node has no captured reference")
     obj, resolved_sub, shape = resolve_reference(doc, ref, allow_recovery=True)
-    return {
+    values = {
         "shape": shape,
         "object": obj,
         "resolved_subelement": resolved_sub,
     }
+    stored_sub = str(ref.get("subelement", "") or "")
+    if resolved_sub != stored_sub:
+        # Recovered by geometric signature. The stored reference is left
+        # untouched; the evaluator surfaces this so the user can confirm it.
+        values["_warning"] = f"{obj.Name}.{stored_sub} no longer exists; using {obj.Name}.{resolved_sub} (unique geometric match)"
+    return values
 
 
 def eval_measure(_doc, _node, inputs):
@@ -86,7 +107,7 @@ def register_core_nodes() -> None:
         return
     registry.register(
         NodeSpec(
-            "reference.geometry",
+            REFERENCE_NODE_TYPE,
             "Geometry Reference",
             "Reference",
             outputs=[PortSpec("shape", "CAD.Shape"), PortSpec("object", "Any")],
@@ -102,6 +123,7 @@ def register_core_nodes() -> None:
             outputs=[PortSpec("shape", "CAD.Solid")],
             default_params={"length": 10.0, "width": 10.0, "height": 10.0},
             evaluate=eval_box,
+            generates_object=True,
         )
     )
     registry.register(
@@ -112,6 +134,7 @@ def register_core_nodes() -> None:
             outputs=[PortSpec("shape", "CAD.Solid")],
             default_params={"radius": 5.0, "height": 10.0},
             evaluate=eval_cylinder,
+            generates_object=True,
         )
     )
     registry.register(
@@ -123,6 +146,7 @@ def register_core_nodes() -> None:
             outputs=[PortSpec("shape", "CAD.Shape")],
             default_params={"x": 0.0, "y": 0.0, "z": 0.0},
             evaluate=eval_translate,
+            generates_object=True,
         )
     )
     registry.register(
@@ -133,6 +157,7 @@ def register_core_nodes() -> None:
             inputs=[PortSpec("base", "CAD.Shape"), PortSpec("tool", "CAD.Shape")],
             outputs=[PortSpec("shape", "CAD.Shape")],
             evaluate=eval_cut,
+            generates_object=True,
         )
     )
     registry.register(
@@ -143,6 +168,7 @@ def register_core_nodes() -> None:
             inputs=[PortSpec("a", "CAD.Shape"), PortSpec("b", "CAD.Shape")],
             outputs=[PortSpec("shape", "CAD.Shape")],
             evaluate=eval_fuse,
+            generates_object=True,
         )
     )
     registry.register(

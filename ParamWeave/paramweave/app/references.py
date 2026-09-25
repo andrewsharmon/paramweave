@@ -1,15 +1,23 @@
-"""Capture and resolve FreeCAD object/sub-element references."""
+"""Capture and resolve FreeCAD object/sub-element references.
+
+Resolution (``resolve_reference``) only needs the FreeCAD application layer so
+it works in console mode. Capturing from and pushing to the GUI selection
+imports FreeCADGui lazily.
+"""
 
 from __future__ import annotations
 
 import math
-from typing import Any, Dict, Iterable, Optional, Tuple
+from typing import Any, Dict, Tuple
 
 import FreeCAD as App
-import FreeCADGui as Gui
+
+# Geometric recovery accepts a candidate only if its signature score is at or
+# below this value and no other candidate is also within it.
+RECOVERY_TOLERANCE = 1e-5
 
 
-def _vec(v) -> list[float]:
+def _vec(v) -> list:
     return [float(v.x), float(v.y), float(v.z)]
 
 
@@ -33,6 +41,8 @@ def shape_signature(shape) -> Dict[str, Any]:
 
 
 def capture_single_selection() -> Dict[str, Any]:
+    import FreeCADGui as Gui
+
     selections = Gui.Selection.getSelectionEx()
     if len(selections) != 1:
         raise ValueError("Select exactly one FreeCAD object or sub-element")
@@ -122,19 +132,44 @@ def resolve_reference(document, ref: Dict[str, Any], allow_recovery: bool = True
             candidates.append((score, name, shape))
     candidates.sort(key=lambda item: item[0])
 
-    # Conservative starter threshold. Production code should use FreeCAD's
+    # Conservative starter policy. Production code should use FreeCAD's
     # topology-naming facilities and expose ambiguous repairs to the user.
-    if not candidates or candidates[0][0] > 1e-5:
-        raise LookupError(f"Could not recover reference: {obj.Name}.{sub}")
-    if len(candidates) > 1 and abs(candidates[1][0] - candidates[0][0]) < 1e-8:
-        raise LookupError(f"Ambiguous recovered reference: {obj.Name}.{sub}")
-    _, recovered_name, recovered_shape = candidates[0]
+    matches = [c for c in candidates if c[0] <= RECOVERY_TOLERANCE]
+    if not matches:
+        raise LookupError(f"Referenced sub-element no longer exists and could not be recovered: {obj.Name}.{sub}")
+    if len(matches) > 1:
+        names = ", ".join(name for _, name, _ in matches)
+        raise LookupError(f"Ambiguous reference {obj.Name}.{sub}: {len(matches)} equally good candidates ({names}); repair manually")
+    _, recovered_name, recovered_shape = matches[0]
     return obj, recovered_name, recovered_shape
 
 
-def select_reference(document, ref: Dict[str, Any]) -> None:
+def selection_target(doc_name: str, obj_name: str, sub_name: str) -> Tuple[str, str]:
+    """Map a selection-observer callback to ``(object_name, element_name)``.
+
+    Observers usually receive already-resolved names, but a full subname path
+    such as ``Container`` + ``NestedCyl.Face1`` is resolved to the leaf object
+    here so it compares equal to captured references.
+    """
+    sub = sub_name or ""
+    if "." not in sub:
+        return obj_name, sub
+    try:
+        obj = App.getDocument(doc_name).getObject(obj_name)
+        leaf, _mapped, element = obj.resolveSubElement(sub)
+        if leaf is not None:
+            return leaf.Name, (element or "").lstrip("?")
+    except Exception:
+        pass
+    return obj_name, sub
+
+
+def select_reference(document, ref: Dict[str, Any], clear: bool = True) -> None:
+    import FreeCADGui as Gui
+
     obj, sub, _ = resolve_reference(document, ref, allow_recovery=False)
-    Gui.Selection.clearSelection()
+    if clear:
+        Gui.Selection.clearSelection()
     if sub:
         Gui.Selection.addSelection(obj, sub)
     else:

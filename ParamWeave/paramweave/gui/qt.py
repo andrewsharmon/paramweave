@@ -37,3 +37,25 @@ def mouse_button(name: str):
     if values is not None:
         return getattr(values, name)
     return getattr(QtCore.Qt, name)
+
+
+def pen_style(name: str):
+    values = getattr(QtCore.Qt, "PenStyle", None)
+    if values is not None:
+        return getattr(values, name)
+    return getattr(QtCore.Qt, name)
+
+
+def key(name: str):
+    values = getattr(QtCore.Qt, "Key", None)
+    if values is not None:
+        return getattr(values, name)
+    return getattr(QtCore.Qt, name)
+
+
+def qenum(container, enum_name: str, member: str):
+    """Return ``container.enum_name.member`` (Qt6) or ``container.member`` (Qt5)."""
+    scoped = getattr(container, enum_name, None)
+    if scoped is not None and hasattr(scoped, member):
+        return getattr(scoped, member)
+    return getattr(container, member)

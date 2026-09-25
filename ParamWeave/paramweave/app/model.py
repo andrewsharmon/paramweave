@@ -8,6 +8,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 import json
+import math
 import uuid
 from typing import Any, Dict, Iterable, List, Optional
 
@@ -49,13 +50,25 @@ class GraphNode:
 
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> "GraphNode":
-        return cls(
-            id=str(data["id"]),
-            type_id=str(data["type_id"]),
-            label=str(data.get("label", data["type_id"])),
-            position=[float(v) for v in data.get("position", [0.0, 0.0])],
-            params=dict(data.get("params", {})),
-        )
+        _require_mapping(data, "node")
+        node_id = _require_str(data, "id", "node")
+        type_id = _require_str(data, "type_id", f"node {node_id}")
+        label = data.get("label", type_id)
+        if not isinstance(label, str):
+            raise GraphValidationError(f"node {node_id}: label must be a string")
+        position = data.get("position", [0.0, 0.0])
+        if not isinstance(position, (list, tuple)) or len(position) != 2:
+            raise GraphValidationError(f"node {node_id}: position must be [x, y]")
+        try:
+            xy = [float(v) for v in position]
+        except (TypeError, ValueError) as exc:
+            raise GraphValidationError(f"node {node_id}: position must be numeric") from exc
+        if not all(math.isfinite(v) for v in xy):
+            raise GraphValidationError(f"node {node_id}: position must be finite")
+        params = data.get("params", {})
+        if not isinstance(params, dict):
+            raise GraphValidationError(f"node {node_id}: params must be an object")
+        return cls(id=node_id, type_id=type_id, label=label, position=xy, params=dict(params))
 
 
 @dataclass
@@ -81,17 +94,32 @@ class GraphEdge:
 
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> "GraphEdge":
+        _require_mapping(data, "edge")
+        edge_id = _require_str(data, "id", "edge")
+        where = f"edge {edge_id}"
         return cls(
-            id=str(data["id"]),
-            src_node=str(data["src_node"]),
-            src_port=str(data["src_port"]),
-            dst_node=str(data["dst_node"]),
-            dst_port=str(data["dst_port"]),
+            id=edge_id,
+            src_node=_require_str(data, "src_node", where),
+            src_port=_require_str(data, "src_port", where),
+            dst_node=_require_str(data, "dst_node", where),
+            dst_port=_require_str(data, "dst_port", where),
         )
 
 
 class GraphValidationError(ValueError):
     pass
+
+
+def _require_mapping(data: Any, what: str) -> None:
+    if not isinstance(data, dict):
+        raise GraphValidationError(f"{what} must be a JSON object, got {type(data).__name__}")
+
+
+def _require_str(data: Dict[str, Any], key: str, where: str) -> str:
+    value = data.get(key)
+    if not isinstance(value, str) or not value:
+        raise GraphValidationError(f"{where}: '{key}' must be a non-empty string")
+    return value
 
 
 class GraphModel:
@@ -197,16 +225,29 @@ class GraphModel:
 
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> "GraphModel":
-        version = int(data.get("schema_version", 0))
-        if version != SCHEMA_VERSION:
-            raise GraphValidationError(f"Unsupported schema version: {version}")
+        """Build a model from untrusted data, raising GraphValidationError on any defect."""
+        _require_mapping(data, "graph")
+        version = data.get("schema_version", 0)
+        if isinstance(version, bool) or not isinstance(version, int) or version != SCHEMA_VERSION:
+            raise GraphValidationError(f"Unsupported schema version: {version!r}")
+        nodes = data.get("nodes", [])
+        edges = data.get("edges", [])
+        if not isinstance(nodes, list) or not isinstance(edges, list):
+            raise GraphValidationError("'nodes' and 'edges' must be lists")
         model = cls()
-        for raw in data.get("nodes", []):
+        for raw in nodes:
             model.add_node(GraphNode.from_dict(raw))
-        for raw in data.get("edges", []):
+        seen_inputs = set()
+        for raw in edges:
             edge = GraphEdge.from_dict(raw)
             if edge.id in model.edges:
                 raise GraphValidationError(f"Duplicate edge id: {edge.id}")
+            if edge.src_node == edge.dst_node:
+                raise GraphValidationError(f"Self edge: {edge.id}")
+            key = (edge.dst_node, edge.dst_port)
+            if key in seen_inputs:
+                raise GraphValidationError(f"Input connected more than once: {edge.dst_node}.{edge.dst_port}")
+            seen_inputs.add(key)
             model.edges[edge.id] = edge
         model.topological_order()
         return model
@@ -215,4 +256,8 @@ class GraphModel:
     def from_json(cls, text: str) -> "GraphModel":
         if not text.strip():
             return cls()
-        return cls.from_dict(json.loads(text))
+        try:
+            data = json.loads(text)
+        except ValueError as exc:
+            raise GraphValidationError(f"Graph JSON is not valid JSON: {exc}") from exc
+        return cls.from_dict(data)
