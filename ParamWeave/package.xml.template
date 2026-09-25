@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no" ?>
+<!--
+  TEMPLATE ONLY. Rename to package.xml after choosing a project license and
+  replacing the TODO values. Do not claim a license that has not been selected.
+-->
+<package format="1" xmlns="https://wiki.freecad.org/Package_Metadata">
+  <name>ParamWeave</name>
+  <description>Patch-based graph authoring integrated with FreeCAD</description>
+  <version>0.0.1-dev</version>
+  <date>2026-09-25</date>
+  <maintainer>TODO</maintainer>
+  <license>TODO-SELECT-LICENSE</license>
+  <content>
+    <workbench>
+      <name>ParamWeave</name>
+      <classname>ParamWeaveWorkbench</classname>
+      <subdirectory>./</subdirectory>
+      <icon>paramweave/resources/icons/paramweave.svg</icon>
+      <tag>cad</tag>
+      <tag>parametric</tag>
+      <tag>node</tag>
+      <tag>visual-programming</tag>
+    </workbench>
+  </content>
+</package>
