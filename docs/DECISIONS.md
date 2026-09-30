@@ -105,7 +105,7 @@ Angles are degrees in graph data and radians only at the Sketcher boundary.
 ## 2026-09-30 finger-jointed box example
 
 ### Finger joints are a sketch element, not a solid feature
-**Decision:** `Finger Joint Panel` produces one closed sketch outline per panel (edge modes `out`/`in`/`flat`/`recessed`, odd finger counts so edges are symmetric). Joints are made by giving mating edges opposite modes and the same count, so panels stay flat 2D profiles that can be exported for cutting. There is no kerf/clearance allowance yet.
+**Decision:** `Finger Joint Panel` produces one closed sketch outline per panel (edge modes `out`/`in`/`flat`/`recessed`, odd finger counts so edges are symmetric). Joints are made by giving mating edges opposite modes and the same count, so panels stay flat 2D profiles that can be exported for cutting. Kerf is handled by the panel's `kerf` parameter (see below).
 
 ### Extrude follows the sketch plane
 **Decision:** Extrude now orients its direction by the input shape's placement +Z (the sketch normal) rather than the wire winding, so profiles extrude predictably to the side the sketch offset implies.
@@ -123,3 +123,11 @@ Angles are degrees in graph data and radians only at the Sketcher boundary.
 
 ### Tutorials are executable
 **Decision:** Each tutorial has a GUI script (`tests/gui/tutorial_*.py`) that performs every step through GUI interactions (context-menu add signal, port clicks, typing in the property panel, Ctrl-click, Ctrl+D, Delete, dragging, the Evaluate button), verifies the resulting geometry, and regenerates the tutorial's screenshots. The Markdown source is rendered to PDF by `tools/build_tutorial_pdf.py`, so text, pictures and the verified workflow stay in sync.
+
+## 2026-09-30 kerf allowance
+
+### Kerf grows the cut outline, not the model
+**Decision:** `Finger Joint Panel` takes `kerf` (default 0) and offsets its whole outline outward by `kerf / 2` (exact for right-angled outlines: each vertex moves by the sum of its edges' outward normals). Fingers get `kerf` wider and slots `kerf` narrower, so parts fit tight after cutting. The sketch is the cutting outline, so the 3D assembly overlaps by the kerf; nominal geometry is kerf 0. Kerf must be >= 0 and smaller than the narrowest finger/slot and the thickness. Loose-fit clearance (a negative allowance) is not supported yet.
+
+### Parameters added later still work in old graphs
+**Decision:** The evaluator fills parameters missing from a saved node with the node type's current defaults before applying wired overrides, so a parameter introduced after a graph was saved (like `kerf`) evaluates with its default and can be driven by a wire. Stored node params are not rewritten.

@@ -15,12 +15,16 @@ class FingerBoxExampleTests(unittest.TestCase):
         ids = finger_box.build(g)
         order = g.topological_order()
         self.assertEqual(len(g.nodes), len(order))
-        self.assertEqual(7 + 7 + 6 * 3, len(g.nodes))
+        self.assertEqual(8 + 7 + 6 * 3, len(g.nodes))
+        self.assertEqual(79, len(g.edges))
         self.assertEqual(g.to_dict(), GraphModel.from_json(g.to_json()).to_dict())
         # Every panel depends on the thickness constant.
         t = ids["t"]
         for key in ("bottom", "front", "back", "left", "right", "lid"):
             self.assertTrue(any(e.src_node == t and e.dst_node == ids[key] for e in g.edges.values()))
+            self.assertTrue(
+                any(e.src_node == ids["k"] and e.dst_node == ids[f"{key}_profile"] and e.dst_port == "kerf" for e in g.edges.values())
+            )
 
     def test_without_lid(self):
         g = GraphModel()

@@ -192,7 +192,9 @@ def drag(name, col, row):
     send(TYPES.MouseButtonRelease, target, no_button())
     pump(3)
     pos = ws().model.nodes[N[name].id].position
-    expect(abs(pos[0] - col * COL) < 2 and abs(pos[1] - row) < 2, f"{name} dragged to {pos}")
+    # Mouse positions are whole view pixels, so at small zoom a drag can land a
+    # few scene units off; that is just as good for a tutorial layout.
+    expect(abs(pos[0] - col * COL) < 8 and abs(pos[1] - row) < 8, f"{name} dragged to {pos}")
 
 
 def evaluate():

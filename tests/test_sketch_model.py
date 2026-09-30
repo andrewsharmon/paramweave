@@ -127,6 +127,39 @@ class SketchModelTests(unittest.TestCase):
         inn = sm.finger_panel(50, 20, 2, [("in", 5), ("flat", 1), ("flat", 1), ("flat", 1)])
         self.assertAlmostEqual(50 * 20 * 2 - 50 * 2, self._area(out) + self._area(inn))
 
+    def _perimeter(self, geo):
+        return sum(abs(e["end"][0] - e["start"][0]) + abs(e["end"][1] - e["start"][1]) for e in geo["elements"])
+
+    def test_offset_rectilinear_rectangle(self):
+        pts = sm.offset_rectilinear([[0, 0], [10, 0], [10, 5], [0, 5]], 0.5)
+        self.assertEqual([[-0.5, -0.5], [10.5, -0.5], [10.5, 5.5], [-0.5, 5.5]], pts)
+
+    def test_kerf_grows_outline_by_half_kerf(self):
+        sides = [("out", 5), ("in", 3), ("out", 5), ("in", 3)]
+        nominal = sm.finger_panel(50, 20, 2, sides)
+        kerfed = sm.finger_panel(50, 20, 2, sides, kerf=0.2)
+        d = 0.1
+        # Growing a right-angled outline by d adds perimeter*d plus 4*d^2
+        # (convex corners minus reflex corners is always 4).
+        expected = self._area(nominal) + self._perimeter(nominal) * d + 4 * d * d
+        self.assertAlmostEqual(expected, self._area(kerfed))
+        self.assertEqual(len(nominal["elements"]), len(kerfed["elements"]))
+        # A finger is kerf wider. The first bottom finger runs from the left
+        # edge's slot inset (x = t = 2) to the first break (x = 10): 8 mm.
+        first_finger = kerfed["elements"][0]
+        self.assertAlmostEqual(8.0 + 0.2, first_finger["end"][0] - first_finger["start"][0])
+        # The slot next to it (x = 10..20) is kerf narrower.
+        slot = kerfed["elements"][2]
+        self.assertAlmostEqual(10.0 - 0.2, slot["end"][0] - slot["start"][0])
+        self.assertAlmostEqual(-0.1, first_finger["start"][1])
+
+    def test_kerf_validation(self):
+        sides = [("out", 5)] + [("flat", 1)] * 3
+        with self.assertRaisesRegex(sm.SketchDataError, "kerf"):
+            sm.finger_panel(50, 20, 2, sides, kerf=-0.1)
+        with self.assertRaisesRegex(sm.SketchDataError, "narrowest"):
+            sm.finger_panel(50, 20, 2, sides, kerf=2.0)
+
     def test_finger_panel_validation(self):
         with self.assertRaisesRegex(sm.SketchDataError, "odd"):
             sm.finger_panel(30, 10, 2, [("out", 4)] + [("flat", 1)] * 3)

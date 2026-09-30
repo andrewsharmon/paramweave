@@ -132,7 +132,8 @@ input to replace its wire.
 
 Example: **ParamWeave → Example: Finger-Jointed Box** inserts a 32-node graph
 for a six-panel finger-jointed box. Edit the constants on the left (length,
-width, height, thickness, fingers along each axis) and Evaluate. Finger counts
+width, height, thickness, laser kerf, fingers along each axis) and Evaluate.
+Kerf grows every panel outline by half the kerf so cut parts fit tight. Finger counts
 are forced odd by expressions, and each panel is a **Finger Joint Panel →
 Sketch → Extrude** chain, so every panel is also an ordinary sketch you can
 export for cutting. The graph is built by `paramweave/examples/finger_box.py`.

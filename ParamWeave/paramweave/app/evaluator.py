@@ -72,7 +72,9 @@ class GraphEvaluator:
                 if spec is None:
                     raise EvaluationError(f"Unknown node type '{node.type_id}' (not evaluated)")
                 inputs = self._inputs_for(node_id)
-                driven = apply_driven_params(node.params, inputs)
+                # Parameters added to a node type after a graph was saved fall
+                # back to the spec default (and can still be driven by a wire).
+                driven = apply_driven_params({**spec.default_params, **node.params}, inputs)
                 if driven != node.params:
                     node = dataclasses.replace(node, params=driven)
                 values = spec.evaluate(self.document, node, inputs)

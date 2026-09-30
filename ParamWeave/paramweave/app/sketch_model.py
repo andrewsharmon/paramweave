@@ -456,12 +456,42 @@ def finger_depths(mode: str, count: int, thickness: float) -> List[float]:
     return [first if j % 2 == 0 else second for j in range(count)]
 
 
-def finger_panel(width: float, height: float, thickness: float, sides) -> Dict[str, Any]:
+def offset_rectilinear(points: List[List[float]], distance: float) -> List[List[float]]:
+    """Grow a counter-clockwise, axis-aligned closed outline outward by ``distance``.
+
+    Every edge moves along its outward normal; with only right-angle corners
+    each vertex simply moves by the sum of its two edges' offsets, which is
+    exact for convex and reflex corners alike.
+    """
+    if not distance:
+        return [list(p) for p in points]
+    n = len(points)
+    out = []
+    for i in range(n):
+        prev_pt, pt, next_pt = points[i - 1], points[i], points[(i + 1) % n]
+        normals = []
+        for a, b in ((prev_pt, pt), (pt, next_pt)):
+            dx, dy = b[0] - a[0], b[1] - a[1]
+            if dx and dy:
+                raise SketchDataError("offset_rectilinear needs axis-aligned edges")
+            length = abs(dx) + abs(dy)
+            normals.append((dy / length, -dx / length))  # outward for a CCW outline
+        (n1x, n1y), (n2x, n2y) = normals
+        out.append([pt[0] + distance * (n1x + n2x), pt[1] + distance * (n1y + n2y)])
+    return out
+
+
+def finger_panel(width: float, height: float, thickness: float, sides, kerf: float = 0.0) -> Dict[str, Any]:
     """Closed outline of a ``width`` x ``height`` panel with finger-jointed edges.
 
     ``sides`` gives ``(mode, count)`` for bottom, right, top, left, walking
     counter-clockwise from the origin. Odd counts keep every edge pattern
     symmetric, so an edge reads the same from either end.
+
+    ``kerf`` is the width of material the cutter removes. The outline is grown
+    outward by ``kerf / 2`` so that, after cutting, fingers and slots come out
+    at their nominal size and joints fit tight. The drawn panel is therefore
+    ``kerf`` larger than nominal in each direction.
     """
     if not width > 0 or not height > 0:
         raise SketchDataError("panel width and height must be > 0")
@@ -473,6 +503,11 @@ def finger_panel(width: float, height: float, thickness: float, sides) -> Dict[s
     dirs = [(1.0, 0.0), (0.0, 1.0), (-1.0, 0.0), (0.0, -1.0)]
     lengths = [width, height, width, height]
     depths = [finger_depths(mode, count, thickness) for mode, count in sides]
+    if isinstance(kerf, bool) or not isinstance(kerf, (int, float)) or not math.isfinite(kerf) or kerf < 0:
+        raise SketchDataError("kerf must be a number >= 0")
+    narrowest = min(min(lengths[s] / len(depths[s]) for s in range(4)), thickness)
+    if kerf >= narrowest:
+        raise SketchDataError(f"kerf {kerf:g} must be smaller than the narrowest finger or slot ({narrowest:g})")
 
     def at(s, u, d):
         (sx, sy), (dx, dy) = starts[s], dirs[s]
@@ -490,4 +525,4 @@ def finger_panel(width: float, height: float, thickness: float, sides) -> Dict[s
                 u = segment * (j + 1)
                 points.append(at(s, u, depths[s][j]))
                 points.append(at(s, u, depths[s][j + 1]))
-    return polyline(points, True)
+    return polyline(offset_rectilinear(points, kerf / 2.0), True)

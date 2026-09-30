@@ -246,6 +246,21 @@ class SketchNodeTests(unittest.TestCase):
         self.assertEqual(ERROR, ev.results[dim.id].status)
         self.assertIn("hole", ev.results[dim.id].message)
 
+    def test_param_added_after_save_can_still_be_driven(self):
+        # A Finger Joint Panel saved before 'kerf' existed has no such key.
+        g = GraphModel()
+        k = g.create_node("value.number", "k", (0, 0), {"value": 0.4})
+        params = {"width": 40.0, "height": 20.0, "thickness": 2.0}
+        params.update({f"fingers_{s}": 1 for s in ("bottom", "right", "top", "left")})
+        params.update({f"mode_{s}": "flat" for s in ("bottom", "right", "top", "left")})
+        panel = g.create_node("sketch.finger_panel", "P", (0, 0), params)
+        g.connect(k.id, "value", panel.id, "kerf")
+        ev = GraphEvaluator(self.doc, g)
+        out = ev.evaluate_all()
+        self.assertEqual(OK, ev.results[panel.id].status, ev.results[panel.id].message)
+        self.assertEqual([-0.2, -0.2], out[panel.id]["geometry"]["elements"][0]["start"])
+        self.assertNotIn("kerf", g.nodes[panel.id].params)  # stored data untouched
+
     def test_sketch_graph_survives_save_and_reopen(self):
         g, _rect, sketch, _ext = self._rect_extrude_graph()
         GraphEvaluator(self.doc, g).evaluate_all()

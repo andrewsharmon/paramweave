@@ -65,6 +65,22 @@ class FingerBoxTests(unittest.TestCase):
         self.assertEqual(count, len(self.doc.Objects))
         self.assertEqual(9.0, out[ids["nL"]]["value"])
 
+    def test_kerf_grows_every_panel_by_half_kerf(self):
+        g = GraphModel()
+        ids = finger_box.build(g)
+        out = GraphEvaluator(self.doc, g).evaluate_all()
+        t = finger_box.DEFAULTS["thickness"]
+        nominal = {k: out[ids[k]]["shape"].Volume for k in PANELS}
+        perimeter = {k: out[ids[f"{k}_sketch"]]["shape"].Length for k in PANELS}
+        g.nodes[ids["k"]].params["value"] = 0.2
+        ev = GraphEvaluator(self.doc, g)
+        out = ev.evaluate_all()
+        self.assertEqual({OK}, {r.status for r in ev.results.values()})
+        d = 0.1
+        for k in PANELS:
+            expected = nominal[k] + (perimeter[k] * d + 4 * d * d) * t
+            self.assertAlmostEqual(expected, out[ids[k]]["shape"].Volume, places=4, msg=k)
+
     def test_open_top_box(self):
         g = GraphModel()
         ids = finger_box.build(g, lid=False, fingers_height=5)

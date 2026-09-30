@@ -94,6 +94,7 @@ def eval_finger_panel(_doc, node, _inputs):
             _positive(p.get("height", 60.0), "height"),
             _positive(p.get("thickness", 3.0), "thickness"),
             sides,
+            _number(p.get("kerf", 0.0), "kerf"),
         )
     }
 
@@ -276,6 +277,7 @@ def register_sketch_nodes() -> None:
                 "width": 100.0,
                 "height": 60.0,
                 "thickness": 3.0,
+                "kerf": 0.0,
                 **{f"fingers_{side}": 5 for side in sm.PANEL_SIDES},
                 **{f"mode_{side}": "out" for side in sm.PANEL_SIDES},
             },

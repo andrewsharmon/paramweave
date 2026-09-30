@@ -1,7 +1,7 @@
 """Example graph: a fully parameterized finger-jointed box.
 
-Seven constants drive everything: outer length/width/height, material
-thickness and the number of fingers along each axis. Expressions force the
+Eight constants drive everything: outer length/width/height, material
+thickness, laser kerf and the number of fingers along each axis. Expressions force the
 finger counts odd and compute the panel plane offsets. Each of the six panels
 is a Finger Joint Panel -> Sketch -> Extrude chain, so every panel is also an
 ordinary Sketcher sketch (handy for laser-cutting export).
@@ -30,6 +30,7 @@ DEFAULTS = {
     "width": 100.0,
     "height": 70.0,
     "thickness": 3.0,
+    "kerf": 0.0,
     "fingers_length": 7,
     "fingers_width": 5,
     "fingers_height": 3,
@@ -60,6 +61,7 @@ def build(model: GraphModel, origin=(0.0, 0.0), lid: bool = True, **overrides) -
         ("W", "Width W", "width"),
         ("H", "Height H", "height"),
         ("t", "Thickness t", "thickness"),
+        ("k", "Kerf k", "kerf"),
         ("nL_raw", "Fingers along L", "fingers_length"),
         ("nW_raw", "Fingers along W", "fingers_width"),
         ("nH_raw", "Fingers along H", "fingers_height"),
@@ -97,13 +99,14 @@ def build(model: GraphModel, origin=(0.0, 0.0), lid: bool = True, **overrides) -
     sides = ("bottom", "right", "top", "left")
     for i, (key, label, w, h, fingers, modes, plane, offset) in enumerate(panels):
         row = i * ROW
-        params = {"width": 1.0, "height": 1.0, "thickness": 1.0}
+        params = {"width": 1.0, "height": 1.0, "thickness": 1.0, "kerf": 0.0}
         params.update({f"fingers_{s}": 1 for s in sides})
         params.update({f"mode_{s}": m for s, m in zip(sides, modes)})
         node(f"{key}_profile", "sketch.finger_panel", f"{label} profile", 2, row, params)
         wire(w, f"{key}_profile", "width")
         wire(h, f"{key}_profile", "height")
         wire("t", f"{key}_profile", "thickness")
+        wire("k", f"{key}_profile", "kerf")
         for s, n in zip(sides, fingers):
             wire(n, f"{key}_profile", f"fingers_{s}")
 

@@ -201,6 +201,5 @@ All six panels regenerate in place, without duplicating any objects:
 - **Export for cutting:** each hidden *… sketch* object is a normal Sketcher sketch. Select it and use FreeCAD's DXF/SVG export.
 - **Open-top box:** delete the three lid nodes and set **mode_top** to `flat` on the four wall profiles.
 - **Drive from a spreadsheet:** replace a Number node with **Values → Document Variable** that points at a Spreadsheet alias.
-- **Shortcut:** **ParamWeave → Example: Finger-Jointed Box** inserts this same graph in one step.
-
-Known limitation: there is no kerf or clearance allowance yet, so the joints are drawn at exact size.
+- **Laser kerf:** every Finger Joint Panel has a **kerf** setting (the width your cutter burns away). Add a `Kerf k` Number (for example 0.15) and wire it into each profile's **kerf** input. Each outline grows by half the kerf, so fingers and slots come out of the cutter at their nominal size and the joints fit tight. The 3D panels then overlap slightly, which is expected.
+- **Shortcut:** **ParamWeave → Example: Finger-Jointed Box** inserts this same graph in one step, including a Kerf k constant.

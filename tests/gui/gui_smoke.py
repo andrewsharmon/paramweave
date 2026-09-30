@@ -549,7 +549,7 @@ def _finger_box_example():
     pump()
     Gui.runCommand("ParamWeave_ExampleFingerBox")
     pump(30)
-    expect(len(w.model.nodes) == 32, f"expected 32 nodes, found {len(w.model.nodes)}")
+    expect(len(w.model.nodes) == 33, f"expected 33 nodes, found {len(w.model.nodes)}")
     bad = {w.model.nodes[n].label: node_status(n) for n in w.model.nodes if node_status(n) != "ok"}
     expect(not bad, f"non-ok nodes: {bad}")
     sketches = [o for o in doc.Objects if o.TypeId == "Sketcher::SketchObject"]
