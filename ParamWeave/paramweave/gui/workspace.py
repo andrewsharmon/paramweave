@@ -287,6 +287,7 @@ class GraphWorkspace:
             QtWidgets.QToolTip.showText(QtGui.QCursor.pos(), str(exc))
             return None
         self.scene.add_edge(edge)
+        self.properties.refresh()  # a wired parameter becomes read-only
         return edge
 
     def move_nodes(self, moved):
@@ -308,6 +309,7 @@ class GraphWorkspace:
             self.statuses.pop(node_id, None)
         self.scene.rebuild()
         self.scene.set_statuses(self.statuses)
+        self.properties.refresh()
 
     def set_param(self, node_id, key, value):
         node = self.model.nodes.get(node_id)

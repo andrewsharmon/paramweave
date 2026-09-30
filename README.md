@@ -25,6 +25,10 @@ The starter contains:
 - embedded graph persistence in an `App::FeaturePython` document object;
 - a node registry and typed ports;
 - constructive nodes for Box, Cylinder, Translate, Fuse, and Cut;
+- sketch nodes: elements (Line, Circle, Arc, Point, Rectangle, Regular Polygon), element
+  modifiers (Combine, Move, Rotate, Remove, Set Construction, Add Constraint, Set
+  Constraint Value), a **Sketch** node that writes an ordinary `Sketcher::SketchObject`,
+  **Read Sketch** / **Drive Sketch Constraint** for existing document sketches, and Extrude;
 - a FreeCAD reference node that can capture object/sub-element selection;
 - measurement nodes for shape area/length/volume;
 - generated `Part::Feature` output objects grouped under `ParamWeave Generated`;
@@ -95,6 +99,31 @@ settings are never touched.
 6. Select a face of any shape in the 3D view and use **Reference From Selection**.
    Clicking the reference node highlights the face; clicking the face selects the node.
 7. **Edit → Undo** steps back through graph edits. Save, close and reopen: the graph returns.
+
+Sketch workflow: add **Rectangle** and **Circle** nodes, wire both into **Combine
+Elements** (`a`, `b`), then into **Sketch**, then **Extrude**, and Evaluate. The
+sketch appears as a normal Sketcher sketch you can open. To work from an existing
+sketch, select it in the tree, create a reference node, and wire its `object`
+into **Read Sketch** (copy and modify its elements) or **Drive Sketch Constraint**
+(set one of its named dimensions in place). Element indices in modifier nodes
+follow sketch order, e.g. `0, 2-4`; constraint refs are `index[:pos]` with
+pos 1 start, 2 end, 3 center, and `-1`/`-2` for the H/V axes.
+
+Driving dimensions: every numeric parameter on every node (rectangle `width`,
+circle `radius`, constraint `value`, box `length`, …) also has an optional input
+port of the same name. Wire a number into it and it overrides the stored value
+(the property panel shows it as "driven by input"). Number sources, under
+**Values** and **Sketch**:
+
+- **Number**: a constant.
+- **Expression**: a formula over inputs `a`–`d`, e.g. `a / 2 - b`,
+  `max(a, 3) * cos(30)` (trig in degrees; `pi`, `sqrt`, `min`, `max`, `clamp`,
+  `round`, `floor`, `ceil`, `atan2`, …, and `x if cond else y`).
+- **Document Variable**: a numeric property of a document object by name or
+  label, e.g. a Spreadsheet alias or a VarSet variable.
+- **Sketch Dimension**: the value of a named constraint, read either from a graph
+  sketch value (`geometry`) or from a referenced document sketch (`object`).
+- **Measure Element**: length/radius/diameter/angle/x/y of one sketch element.
 
 Graph shortcuts: Delete/Backspace removes selected nodes or wires, `F` frames
 all, mouse wheel zooms, middle-drag pans.

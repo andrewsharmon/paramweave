@@ -29,6 +29,12 @@ class NodeSpec:
     # Part::Feature so the result is inspectable without the plugin. Reference
     # nodes leave this False: their shape already lives in the document.
     generates_object: bool = False
+    # Document type of the generated object. Specs that need something other
+    # than a Part::Feature supply ``materialize(obj, values)``, which writes the
+    # node's outputs into ``obj`` and may return extra outputs (e.g. the
+    # recomputed "shape") plus an optional "_warning".
+    generated_type: str = "Part::Feature"
+    materialize: Optional[Callable[..., Optional[Dict[str, Any]]]] = None
     # Placeholder specs stand in for unregistered type_ids found in a file.
     placeholder: bool = False
 
@@ -46,6 +52,13 @@ class NodeRegistry:
     def register(self, spec: NodeSpec) -> NodeSpec:
         if spec.type_id in self._specs:
             raise ValueError(f"Node type already registered: {spec.type_id}")
+        # Every numeric parameter can be driven by an optional Number wire
+        # (constant, expression, measured or referenced dimension). The port is
+        # named after the parameter; see apply_driven_params().
+        taken = {p.name for p in spec.inputs}
+        for key, value in spec.default_params.items():
+            if _is_number(value) and key not in taken:
+                spec.inputs.append(PortSpec(key, "Number", required=False))
         self._specs[spec.type_id] = spec
         return spec
 
@@ -90,6 +103,35 @@ def types_compatible(src: str, dst: str) -> bool:
     if src == dst:
         return True
     # Minimal starter covariance. Expand into a proper type lattice later.
-    if src in {"CAD.Solid", "CAD.Face", "CAD.Edge", "CAD.Vertex"} and dst == "CAD.Shape":
+    if src in {"CAD.Solid", "CAD.Face", "CAD.Edge", "CAD.Vertex", "CAD.Wire"} and dst == "CAD.Shape":
         return True
     return False
+
+
+def _is_number(value: Any) -> bool:
+    return isinstance(value, (int, float)) and not isinstance(value, bool)
+
+
+def driven_param_names(spec: NodeSpec, connected_ports) -> List[str]:
+    """Parameters of ``spec`` currently overridden by a connected wire."""
+    return [k for k, v in spec.default_params.items() if _is_number(v) and k in connected_ports]
+
+
+def apply_driven_params(params: Dict[str, Any], inputs: Dict[str, Any]) -> Dict[str, Any]:
+    """Return ``params`` with numeric entries replaced by same-named wired inputs.
+
+    Integer parameters (e.g. polygon sides) only accept integral values.
+    """
+    out = dict(params)
+    for key, old in params.items():
+        if key not in inputs or not _is_number(old):
+            continue
+        value = inputs[key]
+        if not _is_number(value):
+            raise ValueError(f"input '{key}' must be a number, got {value!r}")
+        if isinstance(old, int):
+            if float(value) != int(value):
+                raise ValueError(f"input '{key}' must be a whole number, got {value!r}")
+            value = int(value)
+        out[key] = value
+    return out

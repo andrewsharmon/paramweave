@@ -672,6 +672,41 @@ def _unknown_type():
     pump()
 
 
+@check("Number wired into a sketch dimension makes it read-only; Sketch node makes a Sketcher sketch")
+def _sketch_driven():
+    w = ws()
+    doc = App.newDocument("PWSketchSmoke")
+    pump()
+    w.bind_active_document(force=True)
+    pump()
+    num = w.add_node("value.number", position=(0.0, 0.0))
+    rect = w.add_node("sketch.rectangle", position=(260.0, 0.0))
+    sk = w.add_node("sketch.sketch", position=(520.0, 0.0))
+    pump()
+    w.properties.set_node(rect.id)
+    pump()
+
+    def width_edit():
+        return [e for e in w.properties.findChildren(QtWidgets.QLineEdit) if e.property("paramweave_key") == "width" and e.isVisible()]
+
+    expect(width_edit() and width_edit()[0].isEnabled(), "width editor should start editable")
+    click_port(num, "out", "value")
+    click_port(rect, "in", "width")
+    click_port(rect, "out", "geometry")
+    click_port(sk, "in", "geometry")
+    expect(len(w.model.edges) == 2, f"expected 2 edges, found {len(w.model.edges)}")
+    pump()
+    expect(width_edit() and not width_edit()[0].isEnabled(), "wired width editor should be read-only")
+    w.evaluate()
+    pump()
+    obj = [o for o in doc.Objects if o.TypeId == "Sketcher::SketchObject"]
+    expect(len(obj) == 1, f"expected one sketch, found {len(obj)}")
+    expect(abs(obj[0].Shape.BoundBox.XLength - 10.0) < 1e-9, f"width not driven: {obj[0].Shape.BoundBox.XLength}")
+    expect(node_status(sk.id) == "ok", f"sketch status {node_status(sk.id)!r}")
+    App.closeDocument(doc.Name)
+    pump()
+
+
 def _finish():
     for doc_name in list(App.listDocuments()):
         try:

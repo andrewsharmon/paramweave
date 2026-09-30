@@ -78,3 +78,26 @@ A successful recovery never rewrites the stored reference; the node shows a `! c
 
 ### Unknown node types
 **Decision:** Unregistered `type_id`s load as inert placeholder nodes (ports inferred from edges), are never evaluated, and are saved back unchanged.
+
+## 2026-09-30 sketch nodes
+
+### Sketch values flow as data; only the Sketch node makes an object
+**Decision:** Sketch element and modifier nodes pass a plain JSON-like `Sketch.Geometry` value (`paramweave/app/sketch_model.py`, pure Python): sketch-local elements plus constraints that refer to elements by index (negative indices are the sketch axes). Modifiers never mutate their input. The **Sketch** node materializes the value into an ordinary `Sketcher::SketchObject` (rewritten, not duplicated, on each evaluation); solver failures and conflicting/redundant constraints are shown as a node warning.
+
+To support this, `NodeSpec` gained `generated_type` and an optional `materialize(obj, values)` hook; nodes without one keep the `Part::Feature` behaviour.
+
+### Existing sketches: read-only copy, or explicit driving
+**Decision:** **Read Sketch** converts a document sketch into a `Sketch.Geometry` value and never changes it. Unsupported geometry (splines, ellipses…), external geometry and unknown constraint types raise an error instead of being dropped. **Drive Sketch Constraint** is the one node that writes into a user-owned object: it sets a *named* dimensional constraint, only when the value differs, inside the evaluation transaction (so it is undoable). It never matches constraints by index.
+
+Angles are degrees in graph data and radians only at the Sketcher boundary.
+
+## 2026-09-30 driven dimensions
+
+### Every numeric parameter is drivable by a wire
+**Decision:** At registration, each numeric default parameter gets an optional `Number` input port with the same name. When connected, the evaluator overrides the parameter for that evaluation only (`apply_driven_params`); the stored value is kept and shown as "driven by input" in the property panel. Integer parameters accept only whole numbers. No schema change: ports are derived from specs, not stored.
+
+### Expressions are interpreted, never `eval()`ed
+**Decision:** Expression nodes parse with `ast` and interpret a whitelist (numbers, the node's `a`–`d` inputs, `pi`/`e`, arithmetic, comparisons, conditional expressions, a fixed function table). Attributes, subscripts, strings, keywords and unknown names are rejected; length and exponent size are capped. Trig functions work in degrees, matching sketch angles.
+
+### Variables are explicit wires
+**Decision:** Expressions see only their wired inputs, not graph-wide names, so evaluation order stays visible in the graph. Document-level variables come from **Document Variable** (Spreadsheet alias / VarSet property), resolved by internal name first, then by a unique label; an ambiguous label is an error.

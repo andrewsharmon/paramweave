@@ -46,7 +46,7 @@ Acceptance:
 
 ## Phase C — deeper CAD integration
 
-- Sketch/reference geometry nodes.
+- Sketch/reference geometry nodes. (Started: sketch element/modifier/Sketch/Extrude nodes; still missing splines/ellipses, external geometry, attachment.)
 - Datum plane/axis/point nodes.
 - Revolve, loft, sweep, fillet, chamfer, array/pattern.
 - Placement/orientation nodes.

@@ -186,6 +186,12 @@ def register_core_nodes() -> None:
             evaluate=eval_measure,
         )
     )
+    # Imported here: the sketch module reuses this module's helpers.
+    from paramweave.nodes.sketch import register_sketch_nodes
+    from paramweave.nodes.values import register_value_nodes
+
+    register_value_nodes()
+    register_sketch_nodes()
 
 
 register_core_nodes()

@@ -72,8 +72,15 @@ class PropertyPanel(QtWidgets.QScrollArea):
         label_edit.setProperty("paramweave_key", "__label__")
         label_edit.editingFinished.connect(lambda nid=node_id, w=label_edit: self._label_finished(nid, w))
         form.addRow("Label", label_edit)
+        wired = {e.dst_port for e in self.model.incoming(node_id)}
         for key, value in node.params.items():
-            if isinstance(value, (dict, list)):
+            if key in wired and isinstance(value, (int, float)) and not isinstance(value, bool):
+                # The wire overrides the stored value at evaluation time.
+                widget = QtWidgets.QLineEdit("driven by input")
+                widget.setReadOnly(True)
+                widget.setEnabled(False)
+                widget.setToolTip(f"'{key}' comes from the connected '{key}' input; disconnect it to edit ({_format(value)} is kept)")
+            elif isinstance(value, (dict, list)):
                 # Structured values (e.g. captured references) are shown read-only;
                 # hand-editing them as JSON is error-prone and bypasses capture.
                 widget = QtWidgets.QPlainTextEdit(json.dumps(value, indent=2, sort_keys=True))

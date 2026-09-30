@@ -2,13 +2,14 @@
 
 from __future__ import annotations
 
+import dataclasses
 from dataclasses import dataclass
 from typing import Any, Dict, Iterable, Optional
 
 import FreeCAD as App
 
 from paramweave.constants import GENERATED_GROUP_NAME, NODE_ID_PROPERTY
-from paramweave.nodes.registry import registry
+from paramweave.nodes.registry import apply_driven_params, registry
 
 # Node statuses reported to the UI. Keep in sync with gui/items.py.
 OK = "ok"
@@ -71,13 +72,16 @@ class GraphEvaluator:
                 if spec is None:
                     raise EvaluationError(f"Unknown node type '{node.type_id}' (not evaluated)")
                 inputs = self._inputs_for(node_id)
+                driven = apply_driven_params(node.params, inputs)
+                if driven != node.params:
+                    node = dataclasses.replace(node, params=driven)
                 values = spec.evaluate(self.document, node, inputs)
                 if not isinstance(values, dict):
                     raise EvaluationError(f"Node evaluator must return dict, got {type(values)!r}")
                 warning = values.pop("_warning", "")
+                if spec.generates_object:
+                    warning = "; ".join(w for w in (warning, self._materialize(node, spec, values)) if w)
                 self.outputs[node_id] = values
-                if spec.generates_object and values.get("shape") is not None:
-                    self._update_generated_shape(node, values["shape"])
                 self.results[node_id] = NodeResult(WARNING, warning) if warning else NodeResult(OK)
                 if warning:
                     App.Console.PrintWarning(f"ParamWeave node {node.label}: {warning}\n")
@@ -96,11 +100,24 @@ class GraphEvaluator:
             group.Label = "ParamWeave Generated"
         return group
 
-    def _update_generated_shape(self, node, shape):
+    def _materialize(self, node, spec, values) -> str:
+        """Mirror a node's outputs into its generated object; return any warning."""
+        if spec.materialize is None:
+            if values.get("shape") is not None:
+                self._generated_object(node, "Part::Feature").Shape = values["shape"]
+            return ""
+        extra = spec.materialize(self._generated_object(node, spec.generated_type), values) or {}
+        warning = extra.pop("_warning", "")
+        values.update(extra)
+        return warning
+
+    def _generated_object(self, node, type_id: str):
         obj = find_generated(self.document, node.id)
+        if obj is not None and obj.TypeId != type_id:
+            raise EvaluationError(f"Generated object {obj.Name} is a {obj.TypeId}, expected {type_id}")
         if obj is None:
             safe_name = "ParamWeave_" + node.id.replace("-", "_")
-            obj = self.document.addObject("Part::Feature", safe_name)
+            obj = self.document.addObject(type_id, safe_name)
             obj.addProperty("App::PropertyString", NODE_ID_PROPERTY, "ParamWeave", "Owning graph node UUID")
             setattr(obj, NODE_ID_PROPERTY, node.id)
             obj.setEditorMode(NODE_ID_PROPERTY, 1)
@@ -108,7 +125,7 @@ class GraphEvaluator:
             obj.Visibility = self._is_terminal(node.id)
         if obj.Label != node.label:
             obj.Label = node.label
-        obj.Shape = shape
+        return obj
 
     def _is_terminal(self, node_id: str) -> bool:
         """True if no generating node consumes this node's output."""
