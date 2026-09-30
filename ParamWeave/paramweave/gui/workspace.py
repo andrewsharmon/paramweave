@@ -10,6 +10,7 @@ from __future__ import annotations
 
 from contextlib import contextmanager
 import copy
+import os
 
 import FreeCAD as App
 import FreeCADGui as Gui
@@ -21,7 +22,7 @@ from paramweave.app.references import capture_single_selection, resolve_referenc
 from paramweave.constants import DOCK_OBJECT_NAME, REFERENCE_NODE_TYPE
 from paramweave.gui.document_sync import DocumentObserver
 from paramweave.gui.properties import PropertyPanel
-from paramweave.gui.qt import QtCore, QtGui, QtWidgets, dock_area, orientation
+from paramweave.gui.qt import QtCore, QtGui, QtWidgets, dock_area, orientation, qenum
 from paramweave.gui.scene import GraphScene
 from paramweave.gui.selection_sync import SelectionObserver, nodes_for_selection
 from paramweave.gui.view import GraphView
@@ -64,6 +65,7 @@ class GraphWorkspace:
         self.scene.deleteRequested.connect(self._guarded(self.delete))
         self.view.duplicateRequested.connect(self._guarded(lambda: self.duplicate()))
         self.view.frameRequested.connect(self._guarded(lambda: self.frame_selection()))
+        self.view.exportRequested.connect(self._guarded(lambda: self.export_cut_files_dialog()))
         self.view.commentRequested.connect(self._guarded(lambda pos: self.add_comment((pos.x(), pos.y()))))
         self.properties.frameEdited.connect(self._guarded(self.set_frame_field))
         self.view.addNodeRequested.connect(self._guarded(lambda t, pos: self.add_node(t, (pos.x(), pos.y()))))
@@ -452,6 +454,93 @@ class GraphWorkspace:
         self.eval_summary = "evaluated: " + (", ".join(problems) if problems else "all ok")
         self.update_status_label()
         return outputs
+
+    # -- cut files ----------------------------------------------------------
+
+    PREFS = "User parameter:BaseApp/Preferences/Mod/ParamWeave"
+
+    def cut_panels(self, only_selected=False):
+        """Evaluate, then return [(label, sketch geometry)] for the graph's Sketch nodes.
+
+        With ``only_selected``, only selected Sketch nodes (or Sketch nodes
+        inside selected frames) are used. Order is top-to-bottom, left-to-right
+        in the graph, so panels keep a predictable order.
+        """
+        outputs = self.evaluate()
+        sketch_ids = [n.id for n in self.model.nodes.values() if n.type_id == "sketch.sketch"]
+        if only_selected:
+            chosen = set(self.scene.selected_node_ids())
+            for frame_id in self.scene.selected_frame_ids():
+                chosen.update(self.model.frame_contents(frame_id)[0])
+            sketch_ids = [n for n in sketch_ids if n in chosen]
+        if not sketch_ids:
+            raise ValueError("No Sketch nodes to export" + (" in the selection" if only_selected else " in this graph"))
+        failed = [self.model.nodes[n].label for n in sketch_ids if "geometry" not in outputs.get(n, {})]
+        if failed:
+            raise ValueError("Cannot export; these sketches did not evaluate: " + ", ".join(sorted(failed)))
+        sketch_ids.sort(key=lambda n: (self.model.nodes[n].position[1], self.model.nodes[n].position[0]))
+        return [(self.model.nodes[n].label, outputs[n]["geometry"]) for n in sketch_ids]
+
+    def export_cut_files(self, path, sheet_width=600.0, gap=5.0, only_selected=False):
+        """Write the panels as a DXF or SVG (chosen by ``path``'s extension)."""
+        from paramweave.app import cutfile
+
+        panels = self.cut_panels(only_selected)
+        text = cutfile.export(panels, os.path.splitext(path)[1], sheet_width, gap)
+        with open(path, "w", encoding="utf-8", newline="\n") as fh:
+            fh.write(text)
+        self.status_label.setText(f"Exported {len(panels)} panel(s) to {os.path.basename(path)}")
+        App.Console.PrintMessage(f"ParamWeave: exported {len(panels)} panel(s) to {path}\n")
+        return len(panels)
+
+    def export_cut_files_dialog(self):
+        """Ask for layout options and a file name, then export."""
+        prefs = App.ParamGet(self.PREFS)
+        dialog = QtWidgets.QDialog(self.dock)
+        dialog.setWindowTitle("Export Cut Files")
+        form = QtWidgets.QFormLayout(dialog)
+        width = QtWidgets.QDoubleSpinBox()
+        width.setRange(10.0, 10000.0)
+        width.setDecimals(1)
+        width.setSuffix(" mm")
+        width.setValue(prefs.GetFloat("CutSheetWidth", 600.0))
+        gap = QtWidgets.QDoubleSpinBox()
+        gap.setRange(0.0, 100.0)
+        gap.setDecimals(1)
+        gap.setSuffix(" mm")
+        gap.setValue(prefs.GetFloat("CutGap", 5.0))
+        selected = QtWidgets.QCheckBox("Only selected Sketch nodes / frames")
+        has_selection = bool(self.scene.selected_node_ids() or self.scene.selected_frame_ids())
+        selected.setEnabled(has_selection)
+        form.addRow("Sheet width", width)
+        form.addRow("Gap between panels", gap)
+        form.addRow(selected)
+        note = QtWidgets.QLabel(
+            "Panels are laid flat in rows. Kerf is taken from each panel's kerf input; "
+            "construction lines are not exported."
+        )
+        note.setWordWrap(True)
+        form.addRow(note)
+        buttons = QtWidgets.QDialogButtonBox(
+            qenum(QtWidgets.QDialogButtonBox, "StandardButton", "Ok") | qenum(QtWidgets.QDialogButtonBox, "StandardButton", "Cancel")
+        )
+        buttons.accepted.connect(dialog.accept)
+        buttons.rejected.connect(dialog.reject)
+        form.addRow(buttons)
+        if not (dialog.exec() if hasattr(dialog, "exec") else dialog.exec_()):
+            return None
+        prefs.SetFloat("CutSheetWidth", width.value())
+        prefs.SetFloat("CutGap", gap.value())
+        doc = self.ensure_bound()
+        start_dir = prefs.GetString("CutDir", os.path.dirname(doc.FileName) if doc.FileName else os.path.expanduser("~"))
+        default = os.path.join(start_dir, f"{doc.Label}-panels.dxf")
+        path, chosen = QtWidgets.QFileDialog.getSaveFileName(self.dock, "Export Cut Files", default, "DXF (*.dxf);;SVG (*.svg)")
+        if not path:
+            return None
+        if os.path.splitext(path)[1].lower() not in (".dxf", ".svg"):
+            path += ".svg" if chosen.startswith("SVG") else ".dxf"
+        prefs.SetString("CutDir", os.path.dirname(path))
+        return self.export_cut_files(path, width.value(), gap.value(), selected.isChecked())
 
     # -- selection sync ---------------------------------------------------
 

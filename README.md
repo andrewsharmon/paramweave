@@ -147,6 +147,16 @@ contents.
 
 ![Finger-box example organised into frames](docs/images/finger-box-frames.png)
 
+Cut files: **ParamWeave → Export Cut Files…** (toolbar, menu, or right-click the
+canvas) lays every Sketch node flat on a sheet and saves a **DXF** (R12, mm, one
+layer per panel) or **SVG** (mm, red hairline cut strokes, one group per panel).
+Choose the sheet width and gap; tick *Only selected* to export just the selected
+Sketch nodes or the Sketch nodes inside selected frames. The graph is evaluated
+first, kerf comes from each panel's kerf input, and construction lines are
+skipped.
+
+![Finger-box panels exported as an SVG cut sheet (preview drawn with thick lines)](docs/images/cut-sheet-example.png)
+
 Graph shortcuts: Delete/Backspace removes selected nodes or wires, `F` frames
 all, mouse wheel zooms, middle-drag pans.
 

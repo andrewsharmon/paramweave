@@ -723,4 +723,53 @@ def _tutorial_file():
     pump()
 
 
+@check("Export Cut Files writes DXF and SVG for all panels or just a selected frame")
+def _export_cut_files():
+    import xml.etree.ElementTree as ET
+
+    expect("ParamWeave_ExportCutFiles" in Gui.listCommands(), "export command is not registered")
+    w = ws()
+    doc = App.newDocument("PWCutSmoke")
+    pump()
+    w.bind_active_document(force=True)
+    pump()
+    Gui.runCommand("ParamWeave_ExampleFingerBox")
+    pump(30)
+    dxf = os.path.join(WORK_DIR, "panels.dxf")
+    svg = os.path.join(WORK_DIR, "panels.svg")
+    expect(w.export_cut_files(dxf, 600.0, 5.0) == 6, "DXF export did not include 6 panels")
+    expect(open(dxf).read().rstrip().endswith("EOF"), "DXF is truncated")
+    expect(w.export_cut_files(svg, 600.0, 5.0) == 6, "SVG export did not include 6 panels")
+    ET.parse(svg)
+    # Only the panels inside a selected frame.
+    w.scene.clearSelection()
+    (front,) = [f for f in w.model.frames.values() if f.label == "Front panel"]
+    w.scene.frame_items[front.id].setSelected(True)
+    pump()
+    expect(w.export_cut_files(svg, 600.0, 5.0, only_selected=True) == 1, "selected-frame export should be 1 panel")
+    titles = [t.text for t in ET.parse(svg).getroot().iter("{http://www.w3.org/2000/svg}title")]
+    expect(titles == ["Front sketch"], f"exported {titles}")
+
+    # The options dialog builds, shows the saved defaults, and cancels cleanly.
+    seen = {}
+
+    def close_dialog():
+        dialog = QtWidgets.QApplication.activeModalWidget()
+        if dialog is None:
+            QtCore.QTimer.singleShot(50, close_dialog)
+            return
+        spins = dialog.findChildren(QtWidgets.QDoubleSpinBox)
+        seen["values"] = sorted(s.value() for s in spins)
+        seen["title"] = dialog.windowTitle()
+        dialog.reject()
+
+    QtCore.QTimer.singleShot(50, close_dialog)
+    result = w.export_cut_files_dialog()
+    expect(result is None, "cancelled dialog should export nothing")
+    expect(seen.get("title") == "Export Cut Files", f"dialog not shown: {seen}")
+    expect(seen.get("values") == [5.0, 600.0], f"dialog defaults {seen.get('values')}")
+    App.closeDocument(doc.Name)
+    pump()
+
+
 start()

@@ -139,3 +139,11 @@ Angles are degrees in graph data and radians only at the Sketcher boundary.
 
 ### Interaction
 **Decision:** Only a frame's title bar grabs it; presses in the body fall through so rubber-band selection works inside frames. Dragging a frame carries its unselected contents (computed from the model at press time, so nothing moves twice) and records node and frame moves as one undo step. Deleting a frame keeps its nodes. Duplicating a frame copies its contents with it. Comments are frames with a note.
+
+## 2026-09-30 cut file export
+
+### Export is an explicit command, never a graph node
+**Decision:** DXF/SVG export runs only from the **Export Cut Files…** command with a user-chosen path. There is no export node: graph files are untrusted input, and a node carrying a file path would let a shared graph write files on Evaluate.
+
+### Own minimal writers, no new dependency
+**Decision:** `paramweave/app/cutfile.py` (pure Python) writes AutoCAD R12 ASCII DXF (LINE/ARC/CIRCLE, `$INSUNITS` mm, one layer per panel) and SVG (mm-sized, red 0.01 mm hairline strokes, one titled group per panel) directly from `Sketch.Geometry` values, so no Draft/ezdxf dependency is needed. Panels are placed in sketch-local coordinates and shelf-packed (tallest first) within a sheet width with a gap. Construction elements and points are skipped; kerf is already in the outlines. SVG keeps DXF's y-up orientation so both files show the same layout. A FreeCAD console test reads the DXF back with FreeCAD's own importer and checks edge count and total length.

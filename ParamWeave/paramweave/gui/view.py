@@ -10,6 +10,7 @@ class GraphView(QtWidgets.QGraphicsView):
     duplicateRequested = QtCore.Signal()
     frameRequested = QtCore.Signal()  # frame the selected nodes
     commentRequested = QtCore.Signal(object)  # scene position
+    exportRequested = QtCore.Signal()  # export Sketch nodes as DXF/SVG
 
     def __init__(self, scene, parent=None):
         super().__init__(scene, parent)
@@ -131,5 +132,6 @@ class GraphView(QtWidgets.QGraphicsView):
         if self.scene().selected_node_ids() or self.scene().selected_frame_ids():
             menu.addAction("Duplicate Selected (Ctrl+D)").triggered.connect(self.duplicateRequested.emit)
         menu.addAction("Add Comment Here").triggered.connect(lambda: self.commentRequested.emit(scene_pos))
+        menu.addAction("Export Cut Files (DXF/SVG)…").triggered.connect(self.exportRequested.emit)
         menu.addAction("Frame All (F)").triggered.connect(self.frame_all)
         menu.exec(event.globalPos()) if hasattr(menu, "exec") else menu.exec_(event.globalPos())

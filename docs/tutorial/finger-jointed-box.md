@@ -203,9 +203,9 @@ All six panels regenerate in place, without duplicating any objects:
 
 ## Where to go next
 
-- **Export for cutting:** each hidden *… sketch* object is a normal Sketcher sketch. Select it and use FreeCAD's DXF/SVG export.
+- **Export for cutting:** choose **ParamWeave → Export Cut Files…** (or right-click the canvas). Pick a sheet width and gap, then save a **DXF** or **SVG**: all six panels are laid flat on one sheet, with the kerf applied and construction lines left out. The SVG uses red hairline strokes, which most laser software treats as cut lines.
 - **Open-top box:** delete the three lid nodes and set **mode_top** to `flat` on the four wall profiles.
 - **Drive from a spreadsheet:** replace a Number node with **Values → Document Variable** that points at a Spreadsheet alias.
-- **Cut it:** set **Kerf k** to your cutter's kerf (for example 0.15) and Evaluate before exporting the sketches. The 3D panels then overlap slightly, which is expected: the sketches are now cutting outlines, grown by half the kerf.
+- **Cut it:** set **Kerf k** to your cutter's kerf (for example 0.15) before exporting; Export Cut Files evaluates the graph for you. The 3D panels then overlap slightly, which is expected: the sketches are now cutting outlines, grown by half the kerf.
 - **Organise with frames:** select a panel's three nodes and press **Ctrl+G** (⌘G) to wrap them in a frame; give it a label and colour in the property panel. Dragging the frame's title bar moves the whole panel chain, and Ctrl+D on a frame copies the chain inside it.
 - **Shortcut:** **ParamWeave → Example: Finger-Jointed Box** inserts this same graph in one step, already organised into frames.

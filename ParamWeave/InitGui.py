@@ -29,6 +29,7 @@ class ParamWeaveWorkbench(Gui.Workbench):
                 "ParamWeave_AddCut",
                 "ParamWeave_AddFuse",
                 "ParamWeave_Evaluate",
+                "ParamWeave_ExportCutFiles",
             ],
         )
         self.appendMenu(
@@ -44,6 +45,7 @@ class ParamWeaveWorkbench(Gui.Workbench):
                 "ParamWeave_AddFuse",
                 "ParamWeave_AddMeasure",
                 "Separator",
+                "ParamWeave_ExportCutFiles",
                 "ParamWeave_ExampleFingerBox",
                 "Separator",
                 "ParamWeave_Evaluate",

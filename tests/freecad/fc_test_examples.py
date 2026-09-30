@@ -7,6 +7,7 @@ import unittest
 
 import FreeCAD as App
 
+from paramweave.app import cutfile
 from paramweave.app.evaluator import OK, GraphEvaluator, find_generated
 from paramweave.app.model import GraphModel
 from paramweave.app.persistence import GraphStore
@@ -73,6 +74,61 @@ class TutorialFileTests(unittest.TestCase):
         L, W, H, t = 160.0, 100.0, 70.0, 3.0
         self.assertAlmostEqual(L * W * H - (L - 2 * t) * (W - 2 * t) * (H - 2 * t), total, places=4)
         self.assertAlmostEqual(total, panels[0].fuse(panels[1:]).Volume, places=4)
+
+
+class CutFileTests(unittest.TestCase):
+    """Cut files from the example box read back correctly in FreeCAD's own DXF importer."""
+
+    def setUp(self):
+        self.doc = App.newDocument("PWCut")
+        self.tmp = tempfile.mkdtemp(prefix="pw_cut_")
+
+    def tearDown(self):
+        for name in list(App.listDocuments()):
+            App.closeDocument(name)
+        shutil.rmtree(self.tmp, ignore_errors=True)
+
+    def _panels(self, kerf=0.0):
+        g = GraphModel()
+        ids = finger_box.build(g, kerf=kerf)
+        out = GraphEvaluator(self.doc, g).evaluate_all()
+        return [(g.nodes[ids[f"{k}_sketch"]].label, out[ids[f"{k}_sketch"]]["geometry"]) for k in PANELS]
+
+    @staticmethod
+    def _length(panels):
+        total = 0.0
+        for _name, geo in panels:
+            for el in cutfile.cut_elements(geo):
+                (x0, y0), (x1, y1) = el["start"], el["end"]
+                total += ((x1 - x0) ** 2 + (y1 - y0) ** 2) ** 0.5
+        return total
+
+    def test_dxf_imports_into_freecad_with_every_edge(self):
+        import Import
+
+        panels = self._panels(kerf=0.15)
+        path = os.path.join(self.tmp, "box.dxf")
+        with open(path, "w", encoding="utf-8") as fh:
+            fh.write(cutfile.export(panels, "dxf", sheet_width=600, gap=5))
+        target = App.newDocument("PWCutImport")
+        Import.readDXF(path, target.Name)
+        target.recompute()
+        edges = [e for o in target.Objects if hasattr(o, "Shape") for e in o.Shape.Edges]
+        expected = sum(len(cutfile.cut_elements(g)) for _n, g in panels)
+        self.assertEqual(expected, len(edges))
+        self.assertAlmostEqual(self._length(panels), sum(e.Length for e in edges), places=4)
+        bb = App.BoundBox()
+        for e in edges:
+            bb.add(e.BoundBox)
+        self.assertLessEqual(bb.XMax, 600.0 + 1e-6)
+        self.assertGreaterEqual(min(bb.XMin, bb.YMin), -1e-6)
+
+    def test_svg_has_one_group_per_panel(self):
+        import xml.etree.ElementTree as ET
+
+        root = ET.fromstring(cutfile.export(self._panels(), "svg").encode())
+        titles = [t.text for t in root.iter("{http://www.w3.org/2000/svg}title")]
+        self.assertEqual(sorted(f"{k.capitalize()} sketch" for k in PANELS), sorted(titles))
 
 
 class FingerBoxTests(unittest.TestCase):

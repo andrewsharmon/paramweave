@@ -66,6 +66,11 @@ def register_commands():
         "ParamWeave_AddMeasure": _Command(
             "Add Measure Node", "Add a shape measurement node", lambda: _ws().add_node("measure.shape")
         ),
+        "ParamWeave_ExportCutFiles": _Command(
+            "Export Cut Files…",
+            "Export the graph's Sketch nodes laid flat as a DXF or SVG for laser cutting",
+            lambda: _ws().export_cut_files_dialog(),
+        ),
         "ParamWeave_ExampleFingerBox": _Command(
             "Example: Finger-Jointed Box",
             "Insert a fully parameterized finger-jointed box graph (edit the constants, then Evaluate)",
