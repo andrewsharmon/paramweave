@@ -8,7 +8,8 @@ clicking nodes and wires, Ctrl+D, Delete, dragging nodes and the Evaluate
 button.
 
 Run: python3 tools/run_freecad_tests.py --gui-script tests/gui/tutorial_finger_box.py
-Screenshots go to $PARAMWEAVE_TUTORIAL_OUT (default docs/tutorial/images).
+Screenshots go to $PARAMWEAVE_TUTORIAL_OUT (default docs/tutorial/images); the
+finished document is saved next to that folder as finger-jointed-box.FCStd.
 """
 
 import os
@@ -333,6 +334,7 @@ CONSTANTS = [
     ("W", "Width W", "100"),
     ("H", "Height H", "70"),
     ("t", "Thickness t", "3"),
+    ("k", "Kerf k", "0"),
     ("nL_raw", "Fingers along L", "7"),
     ("nW_raw", "Fingers along W", "5"),
     ("nH_raw", "Fingers along H", "3"),
@@ -391,10 +393,10 @@ def _s4():
     add("bottom_profile", "sketch.finger_panel", 2, 0, "Bottom profile")
     for side in ("bottom", "right", "top", "left"):
         set_text("bottom_profile", f"mode_{side}", "in")
-    for src, port in (("L", "width"), ("W", "height"), ("t", "thickness"), ("nL", "fingers_bottom"), ("nW", "fingers_right"), ("nL", "fingers_top"), ("nW", "fingers_left")):
+    for src, port in (("L", "width"), ("W", "height"), ("t", "thickness"), ("k", "kerf"), ("nL", "fingers_bottom"), ("nW", "fingers_right"), ("nL", "fingers_top"), ("nW", "fingers_left")):
         wire(src, "value", "bottom_profile", port)
     select("bottom_profile")
-    return shot("04_bottom_profile", ["L", "W", "t", "nL", "nW", "bottom_profile"], panel_key="mode_bottom")
+    return shot("04_bottom_profile", ["L", "W", "t", "k", "nL", "nW", "bottom_profile"], panel_key="mode_bottom")
 
 
 @step(5, "Turn the profile into a sketch and extrude it")
@@ -474,7 +476,20 @@ def _s10():
     wire("right_off", "value", "right_sketch", "offset")
     evaluate()
     press(KEY.Key_F)
-    return shot("10_complete", window=True) + shot("10_complete", view3d=True)
+    files = shot("10_complete", window=True) + shot("10_complete", view3d=True)
+    # Ship the finished tutorial document. saveCopy leaves the working
+    # document untouched and records no file name of the session's own.
+    path = os.path.join(os.path.dirname(OUT), "finger-jointed-box.FCStd")
+    if os.path.exists(path):
+        os.remove(path)
+    doc = App.ActiveDocument
+    # FreeCAD stamps new documents "All rights reserved"; the project licence
+    # is undecided (see LICENSE_STATUS.md), so the example claims none.
+    doc.License = ""
+    doc.LicenseURL = ""
+    doc.saveCopy(path)
+    expect(os.path.getsize(path) > 0, "FCStd was not written")
+    return files + [os.path.basename(path)]
 
 
 @step(11, "Change a constant and re-evaluate")
@@ -500,8 +515,10 @@ def _verify_box(L, W, H, t):
     expect(abs(fused.Volume - total) < 1e-3, "panels overlap")
     bb = fused.BoundBox
     expect(max(abs(bb.XLength - L), abs(bb.YLength - W), abs(bb.ZLength - H)) < 1e-6, f"bounds {bb}")
+    kerf_wired = [e for e in ws().model.edges.values() if e.src_node == N["k"].id and e.dst_port == "kerf"]
+    expect(len(kerf_wired) == 6, f"Kerf k drives {len(kerf_wired)} panel profiles, expected 6")
     nodes, edges = len(ws().model.nodes), len(ws().model.edges)
-    expect((nodes, edges) == (32, 73), f"graph has {nodes} nodes / {edges} wires")
+    expect((nodes, edges) == (33, 79), f"graph has {nodes} nodes / {edges} wires")
 
 
 @check("tutorial log written")

@@ -26,6 +26,25 @@ class FingerBoxExampleTests(unittest.TestCase):
                 any(e.src_node == ids["k"] and e.dst_node == ids[f"{key}_profile"] and e.dst_port == "kerf" for e in g.edges.values())
             )
 
+    def test_frames_group_the_graph(self):
+        g = GraphModel()
+        ids = finger_box.build(g)
+        self.assertEqual(2 + 6, len(g.frames))
+        contents = {f.label: set(g.frame_contents(f.id)[0]) for f in g.frames.values()}
+        self.assertEqual({ids[k] for k in ("L", "W", "H", "t", "k", "nL_raw", "nW_raw", "nH_raw")}, contents["Constants"])
+        self.assertEqual(7, len(contents["Derived values"]))
+        for key, label in (("bottom", "Bottom"), ("front", "Front"), ("left", "Left"), ("lid", "Lid")):
+            self.assertEqual({ids[f"{key}_profile"], ids[f"{key}_sketch"], ids[key]}, contents[f"{label} panel"])
+        # Every node is in exactly one frame, and frames do not overlap.
+        members = [n for c in contents.values() for n in c]
+        self.assertEqual(sorted(g.nodes), sorted(members))
+        frames = list(g.frames.values())
+        for i, a in enumerate(frames):
+            for b in frames[i + 1:]:
+                ax, ay, aw, ah = a.rect
+                bx, by, bw, bh = b.rect
+                self.assertFalse(ax < bx + bw and bx < ax + aw and ay < by + bh and by < ay + ah, (a.label, b.label))
+
     def test_without_lid(self):
         g = GraphModel()
         ids = finger_box.build(g, lid=False, thickness=4.0)

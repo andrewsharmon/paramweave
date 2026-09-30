@@ -63,6 +63,9 @@ class GraphWorkspace:
         self.scene.nodesMoved.connect(self._guarded(self.move_nodes))
         self.scene.deleteRequested.connect(self._guarded(self.delete))
         self.view.duplicateRequested.connect(self._guarded(lambda: self.duplicate()))
+        self.view.frameRequested.connect(self._guarded(lambda: self.frame_selection()))
+        self.view.commentRequested.connect(self._guarded(lambda pos: self.add_comment((pos.x(), pos.y()))))
+        self.properties.frameEdited.connect(self._guarded(self.set_frame_field))
         self.view.addNodeRequested.connect(self._guarded(lambda t, pos: self.add_node(t, (pos.x(), pos.y()))))
         self.view.referenceRequested.connect(self._guarded(lambda pos: self.add_reference_from_selection((pos.x(), pos.y()))))
         self.properties.parameterEdited.connect(self._guarded(self.set_param))
@@ -308,10 +311,16 @@ class GraphWorkspace:
 
     def duplicate(self, node_ids=None):
         """Copy the selected nodes (keeping their input wires) and select the copies."""
+        frame_ids = [] if node_ids is not None else self.scene.selected_frame_ids()
         node_ids = [n for n in (node_ids if node_ids is not None else self.scene.selected_node_ids()) if n in self.model.nodes]
-        if not node_ids:
+        # A selected frame is copied together with everything inside it.
+        for frame_id in list(frame_ids):
+            nodes, frames = self.model.frame_contents(frame_id)
+            node_ids += [n for n in nodes if n not in node_ids]
+            frame_ids += [f for f in frames if f not in frame_ids]
+        if not node_ids and not frame_ids:
             return {}
-        taken = {n.label for n in self.model.nodes.values()}
+        taken = {n.label for n in self.model.nodes.values()} | {f.label for f in self.model.frames.values()}
 
         def label_for(base):
             i = 2
@@ -321,22 +330,82 @@ class GraphWorkspace:
             return f"{base} {i}"
 
         with self.edit("Duplicate"):
-            mapping = self.model.duplicate(node_ids, label_for=label_for)
+            mapping = self.model.duplicate(node_ids, label_for=label_for, frame_ids=frame_ids)
         self.scene.rebuild()
         self.scene.set_statuses(self.statuses)
-        self.scene.set_nodes_selected(list(mapping.values()), True, exclusive=True)
+        new_frames = [mapping[f] for f in frame_ids]
+        if new_frames:
+            # Select the copied frame(s) so the next drag moves the whole copy.
+            self.scene.clearSelection()
+            for frame_id in new_frames:
+                self.scene.frame_items[frame_id].setSelected(True)
+        else:
+            self.scene.set_nodes_selected(list(mapping.values()), True, exclusive=True)
         return mapping
 
-    def move_nodes(self, moved):
-        with self.edit("Move node" if len(moved) == 1 else "Move nodes"):
+    def move_nodes(self, moved, frames=None):
+        frames = frames or {}
+        label = "Move frame" if frames and not moved else ("Move node" if len(moved) == 1 else "Move nodes")
+        with self.edit(label):
             for node_id, (x, y) in moved.items():
                 node = self.model.nodes.get(node_id)
                 if node is not None:
                     node.position = [float(x), float(y)]
+            for frame_id, rect in frames.items():
+                frame = self.model.frames.get(frame_id)
+                if frame is not None:
+                    frame.rect = [float(v) for v in rect]
 
-    def delete(self, node_ids, edge_ids=()):
+    # -- frames -------------------------------------------------------------
+
+    def frame_selection(self, node_ids=None, label="Frame"):
+        """Wrap the selected nodes in a new frame (title bar above them)."""
+        from paramweave.gui.items import FRAME_HEADER_H
+
+        node_ids = [n for n in (node_ids if node_ids is not None else self.scene.selected_node_ids()) if n in self.scene.node_items]
+        if not node_ids:
+            QtWidgets.QToolTip.showText(QtGui.QCursor.pos(), "Select the nodes to frame first")
+            return None
+        box = QtCore.QRectF()
+        for node_id in node_ids:
+            box = box.united(self.scene.node_items[node_id].sceneBoundingRect())
+        pad = 20.0
+        rect = [box.left() - pad, box.top() - pad - FRAME_HEADER_H, box.width() + 2 * pad, box.height() + 2 * pad + FRAME_HEADER_H]
+        with self.edit("Add frame", create_document=True):
+            frame = self.model.create_frame(self._unique_frame_label(label), rect)
+        self.scene.add_frame(frame)
+        return frame
+
+    def add_comment(self, position, text="Double-check this before cutting."):
+        with self.edit("Add comment", create_document=True):
+            frame = self.model.create_frame(
+                self._unique_frame_label("Comment"), [position[0], position[1], 260.0, 110.0], "yellow", text
+            )
+        self.scene.add_frame(frame)
+        return frame
+
+    def _unique_frame_label(self, base):
+        labels = {f.label for f in self.model.frames.values()}
+        if base not in labels:
+            return base
+        i = 2
+        while f"{base} {i}" in labels:
+            i += 1
+        return f"{base} {i}"
+
+    def set_frame_field(self, frame_id, key, value):
+        frame = self.model.frames.get(frame_id)
+        if frame is None or key not in ("label", "color", "note") or getattr(frame, key) == value:
+            return
+        with self.edit(f"Edit frame {key}"):
+            setattr(frame, key, str(value))
+        self.scene.refresh_frame(frame_id)
+
+    def delete(self, node_ids, edge_ids=(), frame_ids=()):
         node_ids = [n for n in node_ids if n in self.model.nodes]
         with self.edit("Delete") as doc:
+            for frame_id in frame_ids:
+                self.model.remove_frame(frame_id)  # the nodes inside stay
             for edge_id in edge_ids:
                 self.model.remove_edge(edge_id)
             for node_id in node_ids:
@@ -406,7 +475,11 @@ class GraphWorkspace:
         return [(obj, "")] if obj is not None else []
 
     def _on_graph_selection(self, node_ids, user_driven):
-        self.properties.set_node(node_ids[0] if len(node_ids) == 1 else None)
+        frames = self.scene.selected_frame_ids()
+        if not node_ids and len(frames) == 1:
+            self.properties.set_frame(frames[0])
+        else:
+            self.properties.set_node(node_ids[0] if len(node_ids) == 1 else None)
         if not user_driven or not node_ids:
             return
         targets = [t for nid in node_ids for t in self._selection_targets(nid)]

@@ -14,7 +14,12 @@ import uuid
 from typing import Any, Dict, Iterable, List, Optional
 
 
-SCHEMA_VERSION = 1
+SCHEMA_VERSION = 2
+# Versions from_dict() can read. v1 -> v2 added the optional "frames" list.
+SUPPORTED_SCHEMA_VERSIONS = (1, 2)
+
+FRAME_COLORS = ("gray", "blue", "green", "yellow", "orange", "red", "purple")
+FRAME_MIN_SIZE = (80.0, 50.0)
 
 
 def new_id() -> str:
@@ -107,6 +112,65 @@ class GraphEdge:
         )
 
 
+@dataclass
+class GraphFrame:
+    """A labelled box that groups the nodes placed inside it.
+
+    Membership is geometric: a node belongs to the frame when its position
+    (top-left corner) lies inside ``rect``. Frames carry no graph semantics and
+    are never evaluated; ``note`` makes a frame double as a comment.
+    """
+
+    id: str
+    label: str
+    rect: List[float]  # [x, y, width, height]
+    color: str = "gray"
+    note: str = ""
+
+    @classmethod
+    def create(cls, label: str, rect: Iterable[float], color: str = "gray", note: str = "") -> "GraphFrame":
+        return cls(new_id(), label, _frame_rect(list(rect), "frame"), color if color in FRAME_COLORS else "gray", note)
+
+    def contains(self, x: float, y: float) -> bool:
+        fx, fy, fw, fh = self.rect
+        return fx <= x <= fx + fw and fy <= y <= fy + fh
+
+    def contains_rect(self, rect: List[float]) -> bool:
+        x, y, w, h = rect
+        return self.contains(x, y) and self.contains(x + w, y + h)
+
+    def to_dict(self) -> Dict[str, Any]:
+        return {"id": self.id, "label": self.label, "rect": [float(v) for v in self.rect], "color": self.color, "note": self.note}
+
+    @classmethod
+    def from_dict(cls, data: Dict[str, Any]) -> "GraphFrame":
+        _require_mapping(data, "frame")
+        frame_id = _require_str(data, "id", "frame")
+        where = f"frame {frame_id}"
+        label = data.get("label", "")
+        note = data.get("note", "")
+        color = data.get("color", "gray")
+        if not isinstance(label, str) or not isinstance(note, str) or not isinstance(color, str):
+            raise GraphValidationError(f"{where}: label, note and color must be strings")
+        # Unknown colour names (e.g. from a newer version) render as gray but
+        # are kept so saving does not lose them.
+        return cls(frame_id, label, _frame_rect(data.get("rect"), where), color, note)
+
+
+def _frame_rect(rect: Any, where: str) -> List[float]:
+    if not isinstance(rect, (list, tuple)) or len(rect) != 4:
+        raise GraphValidationError(f"{where}: rect must be [x, y, width, height]")
+    try:
+        values = [float(v) for v in rect]
+    except (TypeError, ValueError) as exc:
+        raise GraphValidationError(f"{where}: rect must be numeric") from exc
+    if any(isinstance(v, bool) for v in rect) or not all(math.isfinite(v) for v in values):
+        raise GraphValidationError(f"{where}: rect must be finite numbers")
+    values[2] = max(values[2], FRAME_MIN_SIZE[0])
+    values[3] = max(values[3], FRAME_MIN_SIZE[1])
+    return values
+
+
 class GraphValidationError(ValueError):
     pass
 
@@ -127,10 +191,44 @@ class GraphModel:
     def __init__(self) -> None:
         self.nodes: Dict[str, GraphNode] = {}
         self.edges: Dict[str, GraphEdge] = {}
+        self.frames: Dict[str, GraphFrame] = {}
 
     def clear(self) -> None:
         self.nodes.clear()
         self.edges.clear()
+        self.frames.clear()
+
+    # -- frames -------------------------------------------------------------
+
+    def add_frame(self, frame: GraphFrame) -> GraphFrame:
+        if frame.id in self.frames:
+            raise GraphValidationError(f"Duplicate frame id: {frame.id}")
+        self.frames[frame.id] = frame
+        return frame
+
+    def create_frame(self, label: str, rect, color: str = "gray", note: str = "") -> GraphFrame:
+        return self.add_frame(GraphFrame.create(label, rect, color, note))
+
+    def remove_frame(self, frame_id: str) -> None:
+        """Remove only the frame; the nodes inside it stay."""
+        self.frames.pop(frame_id, None)
+
+    def frame_contents(self, frame_id: str):
+        """(node ids, nested frame ids) inside a frame, including nested contents."""
+        frame = self.frames[frame_id]
+        nodes = [n.id for n in self.nodes.values() if frame.contains(*n.position)]
+        frames = [f.id for f in self.frames.values() if f.id != frame_id and frame.contains_rect(f.rect)]
+        return nodes, frames
+
+    def move_frame(self, frame_id: str, dx: float, dy: float) -> None:
+        """Move a frame together with everything inside it."""
+        nodes, frames = self.frame_contents(frame_id)
+        for node_id in nodes:
+            pos = self.nodes[node_id].position
+            self.nodes[node_id].position = [pos[0] + dx, pos[1] + dy]
+        for fid in [frame_id, *frames]:
+            r = self.frames[fid].rect
+            self.frames[fid].rect = [r[0] + dx, r[1] + dy, r[2], r[3]]
 
     def add_node(self, node: GraphNode) -> GraphNode:
         if node.id in self.nodes:
@@ -187,12 +285,22 @@ class GraphModel:
             raise
         return edge
 
-    def duplicate(self, node_ids: Iterable[str], offset=(40.0, 40.0), label_for=None) -> Dict[str, str]:
+    def duplicate(
+        self, node_ids: Iterable[str], offset=(40.0, 40.0), label_for=None, frame_ids: Iterable[str] = ()
+    ) -> Dict[str, str]:
         """Copy nodes, the wires among them, and the wires feeding them from outside.
 
         Keeping incoming wires means a copied sub-graph stays driven by the same
-        constants/upstream nodes. Returns ``{old_id: new_id}``.
+        constants/upstream nodes. ``frame_ids`` are copied with the same offset
+        (callers pass the frames' contents in ``node_ids``). Returns
+        ``{old_id: new_id}`` for nodes and frames.
         """
+        mapping_frames: Dict[str, str] = {}
+        for old_id in [f for f in frame_ids if f in self.frames]:
+            old = self.frames[old_id]
+            label = label_for(old.label) if label_for else old.label
+            rect = [old.rect[0] + offset[0], old.rect[1] + offset[1], old.rect[2], old.rect[3]]
+            mapping_frames[old_id] = self.create_frame(label, rect, old.color, old.note).id
         ids = [n for n in node_ids if n in self.nodes]
         mapping: Dict[str, str] = {}
         for old_id in ids:
@@ -204,6 +312,7 @@ class GraphModel:
             if edge.dst_node in mapping:
                 src = mapping.get(edge.src_node, edge.src_node)
                 self.connect(src, edge.src_port, mapping[edge.dst_node], edge.dst_port)
+        mapping.update(mapping_frames)
         return mapping
 
     def remove_edge(self, edge_id: str) -> None:
@@ -243,6 +352,7 @@ class GraphModel:
             "schema_version": SCHEMA_VERSION,
             "nodes": [self.nodes[k].to_dict() for k in sorted(self.nodes)],
             "edges": [self.edges[k].to_dict() for k in sorted(self.edges)],
+            "frames": [self.frames[k].to_dict() for k in sorted(self.frames)],
         }
 
     def to_json(self, *, pretty: bool = False) -> str:
@@ -258,8 +368,12 @@ class GraphModel:
         """Build a model from untrusted data, raising GraphValidationError on any defect."""
         _require_mapping(data, "graph")
         version = data.get("schema_version", 0)
-        if isinstance(version, bool) or not isinstance(version, int) or version != SCHEMA_VERSION:
+        if isinstance(version, bool) or not isinstance(version, int) or version not in SUPPORTED_SCHEMA_VERSIONS:
             raise GraphValidationError(f"Unsupported schema version: {version!r}")
+        # v1 -> v2: frames were introduced; a v1 graph simply has none.
+        frames = data.get("frames", []) if version >= 2 else []
+        if not isinstance(frames, list):
+            raise GraphValidationError("'frames' must be a list")
         nodes = data.get("nodes", [])
         edges = data.get("edges", [])
         if not isinstance(nodes, list) or not isinstance(edges, list):
@@ -280,6 +394,8 @@ class GraphModel:
             seen_inputs.add(key)
             model.edges[edge.id] = edge
         model.topological_order()
+        for raw in frames:
+            model.add_frame(GraphFrame.from_dict(raw))
         return model
 
     @classmethod

@@ -179,3 +179,141 @@ class ConnectionItem(QtWidgets.QGraphicsPathItem):
         path.cubicTo(a.x() + dx, a.y(), b.x() - dx, b.y(), b.x(), b.y())
         self.setPath(path)
 
+
+
+FRAME_HEADER_H = 30.0
+FRAME_HANDLE = 14.0
+# name -> (fill colour, border/title colour). The fill is drawn translucent
+# (FRAME_FILL_ALPHA) so wires and the canvas show through.
+FRAME_STYLE = {
+    "gray": ("#8a8f98", "#aab0ba"),
+    "blue": ("#4a7bd0", "#7da4ee"),
+    "green": ("#3fa66b", "#6fd39a"),
+    "yellow": ("#d8b23a", "#f0cf5e"),
+    "orange": ("#d97a2e", "#f2a15f"),
+    "red": ("#d04545", "#f07a7a"),
+    "purple": ("#8e5bd0", "#b894f0"),
+}
+FRAME_FILL_ALPHA = 48
+
+
+class _FrameHandle(QtWidgets.QGraphicsRectItem):
+    """Bottom-right grip that resizes its frame."""
+
+    def __init__(self, frame):
+        super().__init__(0.0, 0.0, FRAME_HANDLE, FRAME_HANDLE, frame)
+        self.frame = frame
+        self.setCursor(qenum(QtCore.Qt, "CursorShape", "SizeFDiagCursor"))
+        self.setPen(QtGui.QPen(qenum(QtCore.Qt, "PenStyle", "NoPen")))
+        self.setToolTip("Drag to resize the frame")
+
+    def mousePressEvent(self, event):
+        event.accept()
+
+    def mouseMoveEvent(self, event):
+        corner = event.scenePos() - self.frame.scenePos()
+        self.frame.set_size(corner.x(), corner.y())
+        scene = self.frame.scene()
+        if scene is not None and hasattr(scene, "frame_item_moved"):
+            scene.frame_item_moved(self.frame)
+
+
+class FrameItem(QtWidgets.QGraphicsRectItem):
+    """A labelled box behind nodes. Dragging its title bar carries its contents."""
+
+    def __init__(self, frame):
+        super().__init__(0.0, 0.0, frame.rect[2], frame.rect[3])
+        self.frame = frame
+        self.carry = []  # items moved along with this frame during a drag
+        self._last_pos = None
+        self.setFlag(item_flag("ItemIsMovable"), True)
+        self.setFlag(item_flag("ItemIsSelectable"), True)
+        self.setFlag(item_flag("ItemSendsGeometryChanges"), True)
+        self.setPos(frame.rect[0], frame.rect[1])
+        self.title = QtWidgets.QGraphicsSimpleTextItem("", self)
+        font = self.title.font()
+        font.setBold(True)
+        font.setPointSizeF(font.pointSizeF() * 1.15)
+        self.title.setFont(font)
+        self.title.setPos(10.0, 7.0)
+        self.note = QtWidgets.QGraphicsTextItem("", self)
+        self.note.setPos(6.0, FRAME_HEADER_H)
+        self.handle = _FrameHandle(self)
+        self.refresh()
+
+    @property
+    def frame_id(self):
+        return self.frame.id
+
+    def set_size(self, width: float, height: float):
+        from paramweave.app.model import FRAME_MIN_SIZE
+
+        self.setRect(0.0, 0.0, max(width, FRAME_MIN_SIZE[0]), max(height, FRAME_MIN_SIZE[1]))
+        self._layout()
+
+    def geometry(self):
+        r = self.rect()
+        return [float(self.pos().x()), float(self.pos().y()), float(r.width()), float(r.height())]
+
+    def _layout(self):
+        r = self.rect()
+        self.handle.setPos(r.width() - FRAME_HANDLE, r.height() - FRAME_HANDLE)
+        self.note.setTextWidth(max(r.width() - 12.0, 20.0))
+        # Smaller frames sit above larger ones so nested frames stay visible;
+        # every frame stays behind wires (-10) and nodes (0).
+        self.setZValue(-20.0 - (r.width() * r.height()) / 1e7)
+
+    def refresh(self):
+        fill, line = FRAME_STYLE.get(self.frame.color, FRAME_STYLE["gray"])
+        selected = self.isSelected()
+        fill_color = QtGui.QColor(fill)
+        fill_color.setAlpha(FRAME_FILL_ALPHA)
+        self.setBrush(QtGui.QBrush(fill_color))
+        pen = QtGui.QPen(QtGui.QColor(SELECTED_COLOR if selected else line), 2.0 if selected else 1.2)
+        self.setPen(pen)
+        self.title.setText(self.frame.label)
+        self.title.setBrush(QtGui.QBrush(QtGui.QColor(line)))
+        self.note.setDefaultTextColor(QtGui.QColor("#d8dbe0"))
+        self.note.setPlainText(self.frame.note)
+        self.handle.setBrush(QtGui.QBrush(QtGui.QColor(line)))
+        self.setToolTip(f"Frame: {self.frame.label}\nDrag the title bar to move it with its contents")
+        self._layout()
+
+    def paint(self, painter, option, widget=None):
+        super().paint(painter, option, widget)
+        # Title bar separator.
+        painter.setPen(QtGui.QPen(QtGui.QColor(FRAME_STYLE.get(self.frame.color, FRAME_STYLE["gray"])[1]), 1.0))
+        painter.drawLine(QtCore.QPointF(0.0, FRAME_HEADER_H - 2.0), QtCore.QPointF(self.rect().width(), FRAME_HEADER_H - 2.0))
+
+    def mousePressEvent(self, event):
+        # Only the title bar grabs the frame. Presses in the body fall through
+        # so rubber-band selection works inside frames.
+        if event.pos().y() > FRAME_HEADER_H:
+            event.ignore()
+            return
+        super().mousePressEvent(event)
+        scene = self.scene()
+        if scene is not None and hasattr(scene, "prepare_frame_drag"):
+            scene.prepare_frame_drag(self)
+        self._last_pos = self.pos()
+
+    def mouseReleaseEvent(self, event):
+        super().mouseReleaseEvent(event)
+        self.carry = []
+        self._last_pos = None
+
+    def itemChange(self, change, value):
+        changes = getattr(QtWidgets.QGraphicsItem, "GraphicsItemChange", QtWidgets.QGraphicsItem)
+        result = super().itemChange(change, value)
+        if change == getattr(changes, "ItemPositionHasChanged", None):
+            if self._last_pos is not None and self.carry:
+                delta = self.pos() - self._last_pos
+                for item in self.carry:
+                    item.moveBy(delta.x(), delta.y())
+            self._last_pos = self.pos()
+            scene = self.scene()
+            if scene is not None and hasattr(scene, "frame_item_moved"):
+                scene.frame_item_moved(self)
+        elif change == getattr(changes, "ItemSelectedHasChanged", None):
+            self.refresh()
+        return result

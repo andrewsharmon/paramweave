@@ -8,6 +8,8 @@ class GraphView(QtWidgets.QGraphicsView):
     addNodeRequested = QtCore.Signal(str, object)
     referenceRequested = QtCore.Signal(object)
     duplicateRequested = QtCore.Signal()
+    frameRequested = QtCore.Signal()  # frame the selected nodes
+    commentRequested = QtCore.Signal(object)  # scene position
 
     def __init__(self, scene, parent=None):
         super().__init__(scene, parent)
@@ -58,7 +60,7 @@ class GraphView(QtWidgets.QGraphicsView):
     def _is_own_shortcut(self, event) -> bool:
         k = event.key()
         ctrl = bool(event.modifiers() & qenum(QtCore.Qt, "KeyboardModifier", "ControlModifier"))
-        if k == key("Key_D"):
+        if k in (key("Key_D"), key("Key_G")):
             return ctrl
         return k in (key("Key_Delete"), key("Key_Backspace"), key("Key_Escape"), key("Key_F")) and not ctrl
 
@@ -85,6 +87,10 @@ class GraphView(QtWidgets.QGraphicsView):
         if k == key("Key_D") and event.modifiers() & qenum(QtCore.Qt, "KeyboardModifier", "ControlModifier"):
             # Ctrl+D (Cmd+D on macOS, where Qt maps Cmd to Control).
             self.duplicateRequested.emit()
+            event.accept()
+            return
+        if k == key("Key_G") and event.modifiers() & qenum(QtCore.Qt, "KeyboardModifier", "ControlModifier"):
+            self.frameRequested.emit()
             event.accept()
             return
         if k == key("Key_F"):
@@ -121,6 +127,9 @@ class GraphView(QtWidgets.QGraphicsView):
             action.triggered.connect(lambda _checked=False, t=type_id: self.addNodeRequested.emit(t, scene_pos))
         menu.addSeparator()
         if self.scene().selected_node_ids():
+            menu.addAction("Frame Selected Nodes (Ctrl+G)").triggered.connect(self.frameRequested.emit)
+        if self.scene().selected_node_ids() or self.scene().selected_frame_ids():
             menu.addAction("Duplicate Selected (Ctrl+D)").triggered.connect(self.duplicateRequested.emit)
+        menu.addAction("Add Comment Here").triggered.connect(lambda: self.commentRequested.emit(scene_pos))
         menu.addAction("Frame All (F)").triggered.connect(self.frame_all)
         menu.exec(event.globalPos()) if hasattr(menu, "exec") else menu.exec_(event.globalPos())

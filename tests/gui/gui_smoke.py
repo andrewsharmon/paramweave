@@ -596,4 +596,131 @@ def _duplicate_shortcut():
     pump()
 
 
+def _drag_scene(start, end, steps=8):
+    """Press at ``start``, move to ``end`` and release, all in scene coordinates."""
+    from PySide import QtGui
+
+    view = ws().view
+    view.fitInView(QtCore.QRectF(start, end).normalized().adjusted(-200, -200, 200, 200), getattr(QtCore.Qt, "AspectRatioMode", QtCore.Qt).KeepAspectRatio)
+    pump(3)
+    types = getattr(QtCore.QEvent, "Type", QtCore.QEvent)
+
+    def send(kind, pt, button, buttons):
+        local = QtCore.QPointF(view.mapFromScene(pt))
+        ev = QtGui.QMouseEvent(kind, local, QtCore.QPointF(view.viewport().mapToGlobal(local.toPoint())), button, buttons, no_modifier())
+        QtWidgets.QApplication.sendEvent(view.viewport(), ev)
+        pump(1)
+
+    send(types.MouseButtonPress, start, left_button(), left_button())
+    for k in range(1, steps + 1):
+        send(types.MouseMove, start + (end - start) * (k / steps), no_button(), left_button())
+    send(types.MouseButtonRelease, end, left_button(), no_button())
+    pump(3)
+
+
+@check("frames: Ctrl+G wraps nodes, title drag carries them, resize, edit, delete keeps nodes, undo, duplicate")
+def _frames():
+    from paramweave.gui.items import FRAME_HEADER_H
+
+    w = ws()
+    doc = App.newDocument("PWFrameSmoke")
+    pump()
+    w.bind_active_document(force=True)
+    pump()
+    a = w.add_node("value.number", position=(0.0, 0.0))
+    b = w.add_node("primitive.box", position=(260.0, 0.0))
+    outside = w.add_node("value.number", position=(900.0, 0.0))
+    w.connect(a.id, "value", b.id, "length")
+    w.scene.clearSelection()
+    w.scene.node_items[a.id].setSelected(True)
+    w.scene.node_items[b.id].setSelected(True)
+    ctrl = getattr(getattr(QtCore.Qt, "KeyboardModifier", QtCore.Qt), "ControlModifier")
+    keys = getattr(QtCore.Qt, "Key", QtCore.Qt)
+    w.view.setFocus()
+    QtTest.QTest.keyClick(w.view, keys.Key_G, ctrl)
+    pump()
+    expect(len(w.model.frames) == 1, f"Ctrl+G made {len(w.model.frames)} frames")
+    frame = next(iter(w.model.frames.values()))
+    nodes, _ = w.model.frame_contents(frame.id)
+    expect(sorted(nodes) == sorted([a.id, b.id]), "frame does not contain exactly the selected nodes")
+    expect(w.properties.frame_id == frame.id, "property panel is not editing the new frame")
+
+    # Drag the title bar: contents follow, the outside node does not.
+    w.scene.clearSelection()
+    item = w.scene.frame_items[frame.id]
+    grab = item.scenePos() + QtCore.QPointF(60.0, FRAME_HEADER_H / 2)
+    _drag_scene(grab, grab + QtCore.QPointF(0.0, 300.0))
+    ay = w.model.nodes[a.id].position[1]
+    expect(abs(ay - 300.0) < 10, f"node inside frame moved to y={ay}")
+    expect(w.model.nodes[outside.id].position == [900.0, 0.0], "node outside the frame moved")
+    edge_item = next(iter(w.scene.edge_items.values()))
+    expect(abs(edge_item.path().pointAtPercent(0).y() - w.scene.node_items[a.id].port("out", "value").scenePos().y()) < 1, "wire did not follow")
+
+    # Resize from the corner handle.
+    r = w.model.frames[frame.id].rect
+    corner = QtCore.QPointF(r[0] + r[2] - 5, r[1] + r[3] - 5)
+    _drag_scene(corner, corner + QtCore.QPointF(150.0, 60.0))
+    r2 = w.model.frames[frame.id].rect
+    expect(abs(r2[2] - r[2] - 150) < 10 and abs(r2[3] - r[3] - 60) < 10, f"resize gave {r2} from {r}")
+
+    # Edit label and colour through the property panel.
+    w.scene.select_node(a.id)
+    w.scene.clearSelection()
+    w.scene.frame_items[frame.id].setSelected(True)
+    pump()
+    label = [e for e in w.properties.findChildren(QtWidgets.QLineEdit) if e.property("paramweave_key") == "__label__" and e.isVisible()][0]
+    label.setFocus()
+    label.selectAll()
+    QtTest.QTest.keyClicks(label, "Inputs")
+    QtTest.QTest.keyClick(label, keys.Key_Return)
+    pump()
+    combo = [c for c in w.properties.findChildren(QtWidgets.QComboBox) if c.property("paramweave_key") == "color" and c.isVisible()][0]
+    combo.setCurrentText("green")
+    pump()
+    expect((w.model.frames[frame.id].label, w.model.frames[frame.id].color) == ("Inputs", "green"), f"frame edits not applied: {w.model.frames[frame.id].label!r}, {w.model.frames[frame.id].color!r}, panel frame={w.properties.frame_id}, node={w.properties.node_id}, status={w.status_label.text()!r}")
+
+    # Duplicate the frame: contents are copied too.
+    w.view.setFocus()
+    QtTest.QTest.keyClick(w.view, keys.Key_D, ctrl)
+    pump()
+    expect(len(w.model.frames) == 2 and len(w.model.nodes) == 5, f"duplicate gave {len(w.model.frames)} frames, {len(w.model.nodes)} nodes")
+
+    # Delete the original frame only; its nodes stay. Undo restores it.
+    w.scene.clearSelection()
+    w.scene.frame_items[frame.id].setSelected(True)
+    w.view.setFocus()
+    QtTest.QTest.keyClick(w.view, keys.Key_Delete)
+    pump()
+    expect(frame.id not in w.model.frames and a.id in w.model.nodes, "delete removed nodes or kept the frame")
+    doc.undo()
+    pump(20)
+    expect(frame.id in w.model.frames, "undo did not restore the frame")
+    expect(w.model.frames[frame.id].label == "Inputs", "restored frame lost its label")
+    App.closeDocument(doc.Name)
+    pump()
+
+
+@check("the tutorial's finished FCStd opens with its graph in the pane")
+def _tutorial_file():
+    import shutil
+
+    src = os.path.join(os.environ["PARAMWEAVE_ROOT"], "docs", "tutorial", "finger-jointed-box.FCStd")
+    path = os.path.join(WORK_DIR, "tutorial-copy.FCStd")
+    shutil.copy(src, path)
+    doc = App.openDocument(path)
+    pump(20)
+    w = ws()
+    w.bind_active_document(force=True)
+    pump(10)
+    expect(not w.load_error, f"load error: {w.load_error}")
+    expect((len(w.model.nodes), len(w.model.edges)) == (33, 79), f"graph has {len(w.model.nodes)} nodes")
+    expect(len(w.scene.node_items) == 33, "graph pane did not draw the nodes")
+    w.evaluate()
+    pump(10)
+    bad = [n.label for n in w.model.nodes.values() if node_status(n.id) != "ok"]
+    expect(not bad, f"nodes not ok: {bad}")
+    App.closeDocument(doc.Name)
+    pump()
+
+
 start()

@@ -69,6 +69,17 @@ class PersistenceTests(unittest.TestCase):
         self.assertIn("ReadOnly", store.getEditorMode("GraphJSON"))
         self.assertIn("Output", store.getPropertyStatus("GraphJSON"))
 
+    def test_frames_round_trip_through_fcstd(self):
+        g, *_ = _cut_graph()
+        g.create_frame("Inputs", [-30, -60, 300, 400], "green", "Primitive sizes")
+        GraphStore(self.doc).save(g)
+        path = os.path.join(self.tmp, "frames.FCStd")
+        self.doc.saveAs(path)
+        App.closeDocument(self.doc.Name)
+        restored = GraphStore(App.openDocument(path)).load()
+        self.assertEqual(g.to_dict(), restored.to_dict())
+        self.assertEqual(["Inputs"], [f.label for f in restored.frames.values()])
+
     def test_store_write_does_not_touch_document_recompute_state(self):
         g, *_ = _cut_graph()
         GraphStore(self.doc).save(g)

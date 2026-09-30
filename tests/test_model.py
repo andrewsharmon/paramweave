@@ -208,5 +208,79 @@ class EditingOperationTests(unittest.TestCase):
         self.assertEqual(g.to_dict(), GraphModel.from_json(g.to_json()).to_dict())
 
 
+
+class FrameTests(unittest.TestCase):
+    def _graph(self):
+        g = GraphModel()
+        inside = g.create_node("x.a", "In", (50, 60), {})
+        outside = g.create_node("x.b", "Out", (500, 60), {})
+        frame = g.create_frame("Group", [0, 0, 300, 200], "blue", "a note")
+        return g, inside, outside, frame
+
+    def test_round_trip_and_schema(self):
+        g, *_ = self._graph()
+        data = json.loads(g.to_json())
+        self.assertEqual(SCHEMA_VERSION, data["schema_version"])
+        self.assertEqual(1, len(data["frames"]))
+        self.assertEqual(g.to_dict(), GraphModel.from_json(g.to_json()).to_dict())
+
+    def test_v1_graph_migrates_without_frames(self):
+        g = GraphModel.from_dict({"schema_version": 1, "nodes": [_node()], "edges": []})
+        self.assertEqual({}, g.frames)
+        self.assertEqual(2, g.to_dict()["schema_version"])
+        # A v1 file cannot smuggle frames in.
+        g = GraphModel.from_dict({"schema_version": 1, "nodes": [], "edges": [], "frames": "junk"})
+        self.assertEqual({}, g.frames)
+
+    def test_frame_validation(self):
+        base = {"id": str(uuid.uuid4()), "label": "F", "rect": [0, 0, 100, 100]}
+        for bad in (
+            dict(base, rect=[0, 0, 100]),
+            dict(base, rect=[0, 0, "x", 1]),
+            dict(base, rect=[0, float("inf"), 100, 100]),
+            dict(base, rect=[True, 0, 100, 100]),
+            dict(base, label=5),
+            dict(base, note=None),
+            {"rect": [0, 0, 1, 1]},
+        ):
+            with self.assertRaises(GraphValidationError, msg=bad):
+                GraphModel.from_dict({"schema_version": 2, "nodes": [], "edges": [], "frames": [bad]})
+        with self.assertRaises(GraphValidationError):
+            GraphModel.from_dict({"schema_version": 2, "nodes": [], "edges": [], "frames": {}})
+        # Tiny frames are clamped; unknown colours survive a round trip.
+        g = GraphModel.from_dict({"schema_version": 2, "nodes": [], "edges": [], "frames": [dict(base, rect=[0, 0, 1, 1], color="teal")]})
+        frame = next(iter(g.frames.values()))
+        self.assertEqual([0.0, 0.0, 80.0, 50.0], frame.rect)
+        self.assertEqual("teal", frame.to_dict()["color"])
+
+    def test_contents_and_move(self):
+        g, inside, outside, frame = self._graph()
+        nested = g.create_frame("Inner", [10, 10, 100, 100])
+        nodes, frames = g.frame_contents(frame.id)
+        self.assertEqual([inside.id], nodes)
+        self.assertEqual([nested.id], frames)
+        g.move_frame(frame.id, 100, -10)
+        self.assertEqual([150, 50], g.nodes[inside.id].position)
+        self.assertEqual([500, 60], g.nodes[outside.id].position)
+        self.assertEqual([110.0, 0.0, 100.0, 100.0], g.frames[nested.id].rect)
+        self.assertEqual([100.0, -10.0, 300.0, 200.0], g.frames[frame.id].rect)
+
+    def test_remove_frame_keeps_nodes(self):
+        g, inside, _outside, frame = self._graph()
+        g.remove_frame(frame.id)
+        self.assertEqual({}, g.frames)
+        self.assertIn(inside.id, g.nodes)
+
+    def test_duplicate_frame_with_contents(self):
+        g, inside, _outside, frame = self._graph()
+        nodes, _frames = g.frame_contents(frame.id)
+        mapping = g.duplicate(nodes, offset=(0, 300), frame_ids=[frame.id], label_for=lambda s: s + " copy")
+        copy = g.frames[mapping[frame.id]]
+        self.assertEqual("Group copy", copy.label)
+        self.assertEqual([0.0, 300.0, 300.0, 200.0], copy.rect)
+        self.assertEqual(("blue", "a note"), (copy.color, copy.note))
+        self.assertEqual([mapping[inside.id]], g.frame_contents(copy.id)[0])
+
+
 if __name__ == "__main__":
     unittest.main()

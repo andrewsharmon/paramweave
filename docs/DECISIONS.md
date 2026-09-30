@@ -131,3 +131,11 @@ Angles are degrees in graph data and radians only at the Sketcher boundary.
 
 ### Parameters added later still work in old graphs
 **Decision:** The evaluator fills parameters missing from a saved node with the node type's current defaults before applying wired overrides, so a parameter introduced after a graph was saved (like `kerf`) evaluates with its default and can be driven by a wire. Stored node params are not rewritten.
+
+## 2026-09-30 frames
+
+### Frames are layout data with geometric membership (schema v2)
+**Decision:** Frames are a separate top-level `frames` list (id, label, rect, color, note), not nodes, so they never enter evaluation or dependency ordering. A node belongs to a frame when its position is inside the frame's rect; nested frames are frames wholly inside another. No member IDs are stored, so deleting or duplicating nodes cannot leave dangling references, and dropping a node into a frame is enough to add it. Schema bumped to v2; v1 graphs migrate with no frames.
+
+### Interaction
+**Decision:** Only a frame's title bar grabs it; presses in the body fall through so rubber-band selection works inside frames. Dragging a frame carries its unselected contents (computed from the model at press time, so nothing moves twice) and records node and frame moves as one undo step. Deleting a frame keeps its nodes. Duplicating a frame copies its contents with it. Comments are frames with a note.

@@ -1,14 +1,16 @@
 # Tutorial: A Parametric Finger-Jointed Box
 
-Build a six-panel finger-jointed box from scratch in the ParamWeave graph. Seven constants drive everything (outer size, material thickness and finger counts), so changing one number regenerates the whole box.
+Build a six-panel finger-jointed box from scratch in the ParamWeave graph. Eight constants drive everything (outer size, material thickness, laser kerf and finger counts), so changing one number regenerates the whole box.
 
 Each panel ends up as an ordinary FreeCAD sketch plus an extruded solid. The sketches are ready to export for laser cutting.
 
 **What you will use:** Number, Expression, Finger Joint Panel, Sketch and Extrude nodes; wiring by clicking ports; the property panel; Duplicate; Evaluate.
 
-**Time:** about 20 minutes. **Result:** 32 nodes, 73 wires.
+**Time:** about 20 minutes. **Result:** 33 nodes, 79 wires.
 
-> Every step in this tutorial was performed through the GUI and checked automatically: `python3 tools/run_freecad_tests.py --gui-script tests/gui/tutorial_finger_box.py` rebuilds the box this way and regenerates these pictures.
+**Finished file:** `finger-jointed-box.FCStd` (next to this tutorial) is the result of following every step. Open it in FreeCAD to compare with your own graph or to skip ahead. Its six sketches and panels are ordinary FreeCAD objects, so they display even without ParamWeave installed. With ParamWeave, the graph pane shows the full graph and **Evaluate** rebuilds the box.
+
+> Every step in this tutorial was performed through the GUI and checked automatically: `python3 tools/run_freecad_tests.py --gui-script tests/gui/tutorial_finger_box.py` rebuilds the box this way and regenerates these pictures and the finished `.FCStd` file.
 
 ## Before you start: working in the graph
 
@@ -56,7 +58,7 @@ The pane on the right is the graph canvas; its lower half is the property panel.
 
 ## Step 2: Add the constants
 
-Add seven **Values → Number** nodes, one for each constant. For each one, set **Label** and **value** in the property panel:
+Add eight **Values → Number** nodes, one for each constant. For each one, set **Label** and **value** in the property panel:
 
 | Label | value |
 |---|---|
@@ -64,13 +66,16 @@ Add seven **Values → Number** nodes, one for each constant. For each one, set 
 | Width W | 100 |
 | Height H | 70 |
 | Thickness t | 3 |
+| Kerf k | 0 |
 | Fingers along L | 7 |
 | Fingers along W | 5 |
 | Fingers along H | 3 |
 
 Stack them in a column at the left of the canvas. These are the only numbers you will ever need to change.
 
-![Seven Number nodes; Thickness t is selected and its value is shown in the property panel](images/02_constants_graph.png)
+**Kerf k** is the width of material your laser or cutter burns away. Leave it at 0 while modelling. Before cutting, set it to your machine's kerf (often 0.1–0.2 mm): every panel outline then grows by half the kerf, so the fingers and slots come out at their nominal size and the joints fit tight.
+
+![Eight Number nodes; Thickness t is selected and its value is shown in the property panel](images/02_constants_graph.png)
 
 ## Step 3: Add the expressions
 
@@ -97,11 +102,11 @@ The three "Odd fingers" expressions round any count up to the next odd number, s
 1. Add **Sketch Elements → Finger Joint Panel** in a third column and label it `Bottom profile`.
 2. Set all four modes, **mode_bottom**, **mode_right**, **mode_top** and **mode_left**, to `in`.
 3. Wire the panel's size and finger counts:
-   - Length L → **width**, Width W → **height**, Thickness t → **thickness**
+   - Length L → **width**, Width W → **height**, Thickness t → **thickness**, Kerf k → **kerf**
    - Odd fingers L → **fingers_bottom** and **fingers_top**
    - Odd fingers W → **fingers_right** and **fingers_left**
 
-The wired fields now read *driven by input*. The edge modes are plain text fields further down the property panel.
+The wired fields now read *driven by input*. Because every other panel starts as a duplicate of this chain, they all inherit the thickness and kerf wires. The edge modes are plain text fields further down the property panel.
 
 ![The bottom profile wired to the constants; the property panel scrolled to its edge modes](images/04_bottom_profile_graph.png)
 
@@ -176,7 +181,7 @@ The lid is identical to the bottom, just raised to the top.
 2. Wire **Right plane (x = L - t)** → *Right sketch* **offset**.
 3. Click **Evaluate**, then press **F** to frame the whole graph.
 
-The status line reads *32 nodes, 73 wires — evaluated: all ok*. The model tree lists six hidden sketches and six visible panels.
+The status line reads *33 nodes, 79 wires — evaluated: all ok*. The model tree lists six hidden sketches and six visible panels.
 
 ![The complete graph, the generated objects in the model tree, and the assembled box](images/10_complete_window.png)
 
@@ -201,5 +206,6 @@ All six panels regenerate in place, without duplicating any objects:
 - **Export for cutting:** each hidden *… sketch* object is a normal Sketcher sketch. Select it and use FreeCAD's DXF/SVG export.
 - **Open-top box:** delete the three lid nodes and set **mode_top** to `flat` on the four wall profiles.
 - **Drive from a spreadsheet:** replace a Number node with **Values → Document Variable** that points at a Spreadsheet alias.
-- **Laser kerf:** every Finger Joint Panel has a **kerf** setting (the width your cutter burns away). Add a `Kerf k` Number (for example 0.15) and wire it into each profile's **kerf** input. Each outline grows by half the kerf, so fingers and slots come out of the cutter at their nominal size and the joints fit tight. The 3D panels then overlap slightly, which is expected.
-- **Shortcut:** **ParamWeave → Example: Finger-Jointed Box** inserts this same graph in one step, including a Kerf k constant.
+- **Cut it:** set **Kerf k** to your cutter's kerf (for example 0.15) and Evaluate before exporting the sketches. The 3D panels then overlap slightly, which is expected: the sketches are now cutting outlines, grown by half the kerf.
+- **Organise with frames:** select a panel's three nodes and press **Ctrl+G** (⌘G) to wrap them in a frame; give it a label and colour in the property panel. Dragging the frame's title bar moves the whole panel chain, and Ctrl+D on a frame copies the chain inside it.
+- **Shortcut:** **ParamWeave → Example: Finger-Jointed Box** inserts this same graph in one step, already organised into frames.

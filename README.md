@@ -138,6 +138,15 @@ are forced odd by expressions, and each panel is a **Finger Joint Panel →
 Sketch → Extrude** chain, so every panel is also an ordinary sketch you can
 export for cutting. The graph is built by `paramweave/examples/finger_box.py`.
 
+Frames: select nodes and press Ctrl+G (⌘G), or right-click → **Frame Selected
+Nodes**, to wrap them in a labelled, coloured frame. Drag a frame by its title
+bar to move everything inside it; drag the corner grip to resize. Select a
+frame to edit its label, colour and note; **Add Comment Here** makes a note-only
+frame. Delete removes just the frame. Ctrl+D on a frame copies it with its
+contents.
+
+![Finger-box example organised into frames](docs/images/finger-box-frames.png)
+
 Graph shortcuts: Delete/Backspace removes selected nodes or wires, `F` frames
 all, mouse wheel zooms, middle-drag pans.
 

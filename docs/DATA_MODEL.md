@@ -1,4 +1,4 @@
-# Graph data model v1
+# Graph data model v2
 
 ## Node
 
@@ -13,6 +13,22 @@ params   JSON object
 ```
 
 Optional additions must be backwards compatible within schema v1 or trigger schema v2.
+
+## Frame (schema v2)
+
+Optional top-level `frames` list. Frames group nodes visually and are never evaluated.
+
+```text
+id     UUID string
+label  user-visible string
+rect   [x, y, width, height] graph coordinates (clamped to at least 80 x 50)
+color  one of gray, blue, green, yellow, orange, red, purple (unknown names load as gray and are preserved)
+note   free text shown inside the frame (comments are frames with a note)
+```
+
+Membership is geometric: a node belongs to a frame when its `position` lies inside `rect`; a frame is nested when its whole `rect` lies inside another. Nothing stores member IDs, so deleting nodes can never leave dangling frame references.
+
+Migration: v1 graphs load with no frames and are saved back as v2.
 
 ## Edge
 

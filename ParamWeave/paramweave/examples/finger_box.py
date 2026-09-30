@@ -39,7 +39,14 @@ DEFAULTS = {
 ODD = "max(1, 2 * floor(a / 2) + 1)"
 
 COL = 300.0  # column spacing
-ROW = 260.0  # panel row spacing
+ROW = 300.0  # panel row spacing (leaves room for each panel's frame)
+
+# Frame geometry around node columns; nodes are 180 wide. Frames group the
+# graph visually only: a node belongs to a frame when its position is inside.
+NODE_W = 180.0
+FRAME_PAD = 30.0
+FRAME_TITLE = 50.0
+PANEL_COLORS = {"bottom": "blue", "lid": "blue", "front": "green", "back": "green", "left": "orange", "right": "orange"}
 
 
 def build(model: GraphModel, origin=(0.0, 0.0), lid: bool = True, **overrides) -> Dict[str, str]:
@@ -55,6 +62,13 @@ def build(model: GraphModel, origin=(0.0, 0.0), lid: bool = True, **overrides) -
     def wire(src, dst, port, src_port="value"):
         model.connect(ids[src], src_port, ids[dst], port)
 
+    def frame(label, col0, col1, top, bottom, color, note=""):
+        x = ox + col0 * COL - FRAME_PAD
+        y = oy + top - FRAME_TITLE
+        width = (col1 - col0) * COL + NODE_W + 2 * FRAME_PAD
+        height = bottom - top + FRAME_TITLE + FRAME_PAD
+        ids[f"frame:{label}"] = model.create_frame(label, [x, y, width, height], color, note).id
+
     # -- constants ----------------------------------------------------------
     constants = [
         ("L", "Length L", "length"),
@@ -68,6 +82,7 @@ def build(model: GraphModel, origin=(0.0, 0.0), lid: bool = True, **overrides) -
     ]
     for i, (key, label, name) in enumerate(constants):
         node(key, "value.number", label, 0, i * 90.0, {"value": float(values[name])})
+    frame("Constants", 0, 0, 0.0, (len(constants) - 1) * 90.0 + 58.0, "yellow", "Edit these, then Evaluate.")
 
     # -- functions ------------------------------------------------------------
     exprs = [
@@ -83,6 +98,7 @@ def build(model: GraphModel, origin=(0.0, 0.0), lid: bool = True, **overrides) -
         node(key, "value.expression", label, 1, i * 150.0, {"expression": text})
         for src, port in zip(inputs, "abcd"):
             wire(src, key, port)
+    frame("Derived values", 1, 1, 0.0, (len(exprs) - 1) * 150.0 + 124.0, "purple")
 
     # -- panels: (key, label, width, height, fingers b/r/t/l, modes b/r/t/l, plane, offset) --
     lid_mode = "out" if lid else "flat"
@@ -118,4 +134,5 @@ def build(model: GraphModel, origin=(0.0, 0.0), lid: bool = True, **overrides) -
         node(key, "sketch.extrude", f"{label} panel", 4, row, {"length": 1.0, "reversed": False})
         wire(f"{key}_sketch", key, "shape", "shape")
         wire("t", key, "length")
+        frame(f"{label} panel", 2, 4, row, row + 212.0, PANEL_COLORS[key])
     return ids

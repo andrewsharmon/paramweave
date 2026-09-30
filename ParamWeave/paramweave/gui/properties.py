@@ -12,11 +12,23 @@ import math
 from paramweave.gui.qt import QtCore, QtWidgets
 
 
+class _NoteEdit(QtWidgets.QPlainTextEdit):
+    """Multi-line editor that reports its text when it loses focus."""
+
+    editingFinished = QtCore.Signal()
+
+    def focusOutEvent(self, event):
+        super().focusOutEvent(event)
+        self.editingFinished.emit()
+
+
 class PropertyPanel(QtWidgets.QScrollArea):
     # (node_id, param key, new value)
     parameterEdited = QtCore.Signal(str, str, object)
     # (node_id, new label)
     labelEdited = QtCore.Signal(str, str)
+    # (frame_id, "label" | "color" | "note", new value)
+    frameEdited = QtCore.Signal(str, str, object)
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -57,10 +69,55 @@ class PropertyPanel(QtWidgets.QScrollArea):
         return form
 
     def refresh(self):
-        self.set_node(self.node_id)
+        if getattr(self, "frame_id", None) is not None:
+            self.set_frame(self.frame_id)
+        else:
+            self.set_node(self.node_id)
+
+    def set_frame(self, frame_id):
+        """Edit a frame's label, colour and note."""
+        from paramweave.app.model import FRAME_COLORS
+
+        form = self._new_form()
+        self.node_id = None
+        self.frame_id = frame_id
+        frame = self.model.frames.get(frame_id) if self.model is not None else None
+        if frame is None:
+            self.frame_id = None
+            form.addRow(QtWidgets.QLabel("Select a single graph node to edit its parameters."))
+            return
+        form.addRow("Type", QtWidgets.QLabel("frame"))
+        label = QtWidgets.QLineEdit(frame.label)
+        label.setProperty("paramweave_key", "__label__")
+        label.editingFinished.connect(lambda fid=frame_id, w=label: self._frame_text(fid, "label", w.text().strip()))
+        form.addRow("Label", label)
+        color = QtWidgets.QComboBox()
+        color.addItems(list(FRAME_COLORS))
+        if frame.color in FRAME_COLORS:
+            color.setCurrentText(frame.color)
+        color.setProperty("paramweave_key", "color")
+        color.currentTextChanged.connect(lambda text, fid=frame_id: self.frameEdited.emit(fid, "color", text))
+        form.addRow("Color", color)
+        note = _NoteEdit(frame.note)
+        note.setProperty("paramweave_key", "note")
+        note.setPlaceholderText("Optional comment shown inside the frame")
+        note.setMaximumHeight(110)
+        note.editingFinished.connect(lambda fid=frame_id, w=note: self._frame_text(fid, "note", w.toPlainText()))
+        form.addRow("Note", note)
+        hint = QtWidgets.QLabel("Nodes placed inside the frame move with it. Delete removes only the frame.")
+        hint.setWordWrap(True)
+        form.addRow(hint)
+
+    def _frame_text(self, frame_id, key, text):
+        frame = self.model.frames.get(frame_id) if self.model is not None else None
+        if frame is None or (key == "label" and not text):
+            return
+        if getattr(frame, key) != text:
+            self.frameEdited.emit(frame_id, key, text)
 
     def set_node(self, node_id):
         form = self._new_form()
+        self.frame_id = None
         self.node_id = node_id
         if self.model is None or node_id is None or node_id not in self.model.nodes:
             self.node_id = None

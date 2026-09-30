@@ -8,7 +8,7 @@ persists inside a FreeCAD transaction, and then reflects back here.
 from __future__ import annotations
 
 from paramweave.gui.qt import QtCore, QtGui, QtWidgets
-from paramweave.gui.items import ConnectionItem, NodeItem, PortItem
+from paramweave.gui.items import ConnectionItem, FrameItem, NodeItem, PortItem
 from paramweave.nodes.registry import placeholder_spec, registry, types_compatible
 
 
@@ -17,17 +17,20 @@ class GraphScene(QtWidgets.QGraphicsScene):
     # mirrors FreeCAD's selection or a rebuild, so it must not be echoed back.
     nodeSelectionChanged = QtCore.Signal(object, bool)
     connectRequested = QtCore.Signal(str, str, str, str)
-    nodesMoved = QtCore.Signal(object)  # {node_id: (x, y)}
-    deleteRequested = QtCore.Signal(object, object)  # node ids, edge ids
+    # ({node_id: (x, y)}, {frame_id: [x, y, w, h]}) after a drag/resize ends
+    nodesMoved = QtCore.Signal(object, object)
+    deleteRequested = QtCore.Signal(object, object, object)  # node, edge, frame ids
 
     def __init__(self, parent=None):
         super().__init__(parent)
         self.model = None
         self.node_items = {}
         self.edge_items = {}
+        self.frame_items = {}
         self.pending_port = None
         self._statuses = {}
         self._moved = set()
+        self._moved_frames = set()
         self._quiet = 0
         self._has_rect = False
         self.selectionChanged.connect(self._emit_node_selection)
@@ -40,15 +43,21 @@ class GraphScene(QtWidgets.QGraphicsScene):
         self.rebuild()
 
     def rebuild(self):
-        selected = set(self.selected_node_ids())
+        selected = set(self.selected_node_ids()) | set(self.selected_frame_ids())
         with self.quiet():
             self.clear()
             self._has_rect = False
             self.node_items = {}
             self.edge_items = {}
+            self.frame_items = {}
             self.pending_port = None
             self._moved = set()
+            self._moved_frames = set()
             if self.model is not None:
+                for frame in self.model.frames.values():
+                    self._add_frame_item(frame)
+                for frame_id in selected & set(self.frame_items):
+                    self.frame_items[frame_id].setSelected(True)
                 for node in self.model.nodes.values():
                     self._add_node_item(node)
                 for edge in self.model.edges.values():
@@ -74,6 +83,24 @@ class GraphScene(QtWidgets.QGraphicsScene):
         self.addItem(item)
         self.node_items[node.id] = item
         return item
+
+    def _add_frame_item(self, frame):
+        item = FrameItem(frame)
+        self.addItem(item)
+        self.frame_items[frame.id] = item
+        return item
+
+    def add_frame(self, frame):
+        item = self._add_frame_item(frame)
+        self.grow_scene_rect()
+        self.clearSelection()
+        item.setSelected(True)
+        return item
+
+    def refresh_frame(self, frame_id: str):
+        item = self.frame_items.get(frame_id)
+        if item is not None:
+            item.refresh()
 
     def add_node(self, node):
         item = self._add_node_item(node)
@@ -127,22 +154,53 @@ class GraphScene(QtWidgets.QGraphicsScene):
             if item in (edge_item.src_port.node_item, edge_item.dst_port.node_item):
                 edge_item.update_path()
 
+    def frame_item_moved(self, item):
+        if self._quiet:
+            return
+        self._moved_frames.add(item.frame_id)
+
+    def prepare_frame_drag(self, pressed):
+        """Work out what a frame drag carries: everything inside the selected frames.
+
+        Selected items are moved by Qt already, so only unselected contents are
+        carried, and all of them by the pressed frame so nothing moves twice.
+        """
+        if self.model is None:
+            return
+        selected = set(self.selectedItems())
+        carried = []
+        for item in list(self.frame_items.values()):
+            item.carry = []
+            if not item.isSelected():
+                continue
+            nodes, frames = self.model.frame_contents(item.frame_id)
+            for other in [self.node_items.get(n) for n in nodes] + [self.frame_items.get(f) for f in frames]:
+                if other is not None and other not in selected and other not in carried:
+                    carried.append(other)
+        pressed.carry = carried
+
     def mouseReleaseEvent(self, event):
         super().mouseReleaseEvent(event)
         self.flush_moves()
 
     def flush_moves(self):
-        if not self._moved:
+        if not self._moved and not self._moved_frames:
             return
         moved = {}
         for node_id in self._moved:
             item = self.node_items.get(node_id)
             if item is not None:
                 moved[node_id] = (float(item.pos().x()), float(item.pos().y()))
+        frames = {}
+        for frame_id in self._moved_frames:
+            item = self.frame_items.get(frame_id)
+            if item is not None:
+                frames[frame_id] = item.geometry()
         self._moved = set()
-        if moved:
+        self._moved_frames = set()
+        if moved or frames:
             self.grow_scene_rect()
-            self.nodesMoved.emit(moved)
+            self.nodesMoved.emit(moved, frames)
 
     # -- wiring -----------------------------------------------------------
 
@@ -206,6 +264,9 @@ class GraphScene(QtWidgets.QGraphicsScene):
     def selected_node_ids(self):
         return [i.node_id for i in self.selectedItems() if isinstance(i, NodeItem)]
 
+    def selected_frame_ids(self):
+        return [i.frame_id for i in self.selectedItems() if isinstance(i, FrameItem)]
+
     def _emit_node_selection(self):
         if self._quiet:
             return
@@ -237,5 +298,6 @@ class GraphScene(QtWidgets.QGraphicsScene):
     def request_delete_selected(self):
         nodes = [i.node_id for i in self.selectedItems() if isinstance(i, NodeItem)]
         edges = [i.edge_id for i in self.selectedItems() if isinstance(i, ConnectionItem)]
-        if nodes or edges:
-            self.deleteRequested.emit(nodes, edges)
+        frames = self.selected_frame_ids()
+        if nodes or edges or frames:
+            self.deleteRequested.emit(nodes, edges, frames)
