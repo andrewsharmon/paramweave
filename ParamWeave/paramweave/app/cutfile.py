@@ -5,7 +5,7 @@ nodes produce (see ``sketch_model``). Each sketch is laid flat in its own
 local coordinates, then panels are packed into rows on a sheet of a given
 width. Construction elements and points are not cut and are skipped.
 
-Units are millimetres. DXF output is AutoCAD R12 ASCII (LINE / ARC /
+Units are millimeters. DXF output is AutoCAD R12 ASCII (LINE / ARC /
 CIRCLE), which laser and CNC software reads widely. SVG output uses mm
 dimensions and red hairline strokes, a common "cut" convention.
 """
@@ -149,7 +149,7 @@ def to_dxf(placed: Sequence[Placed]) -> str:
     pair(9, "$ACADVER")
     pair(1, "AC1009")
     pair(9, "$INSUNITS")
-    pair(70, "4")  # millimetres
+    pair(70, "4")  # millimeters
     pair(0, "ENDSEC")
     pair(0, "SECTION")
     pair(2, "TABLES")

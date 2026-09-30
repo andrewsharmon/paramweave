@@ -17,7 +17,7 @@ wires::
         ],
     }
 
-Coordinates are sketch-local millimetres; angles are degrees. Constraint
+Coordinates are sketch-local millimeters; angles are degrees. Constraint
 ``refs`` are ``[element_index]`` or ``[element_index, point_pos]`` using
 Sketcher's point positions (1 start, 2 end, 3 center). Negative indices are
 the sketch axes (-1 horizontal, -2 vertical) and are left alone by
@@ -504,9 +504,9 @@ def relieved_outline(
     reflex (inside) corner gets a circular notch of that radius whose edge
     passes through the sharp corner point, so the cutter reaches it:
 
-    * ``dogbone``: notch centred on the corner's bisector, biting equally into
+    * ``dogbone``: notch centered on the corner's bisector, biting equally into
       both edges (``sqrt(2) * radius`` along each).
-    * ``tbone_depth`` / ``tbone_side``: notch centred on one edge only, so the
+    * ``tbone_depth`` / ``tbone_side``: notch centered on one edge only, so the
       other edge stays straight up to the corner. ``depth_edges`` lists the
       indices ``i`` of edges ``points[i] -> points[i + 1]`` that run into the
       material (finger/slot walls). ``tbone_depth`` notches the edge that is

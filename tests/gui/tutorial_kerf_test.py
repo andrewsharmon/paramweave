@@ -67,7 +67,7 @@ def solid(key):
 
 
 def top_view(cx, cy, height):
-    """Straight-down orthographic view of the XY plane centred on (cx, cy), ``height`` mm tall.
+    """Straight-down orthographic view of the XY plane centered on (cx, cy), ``height`` mm tall.
 
     Set directly on the camera: viewTop() animates, and saveImage() can
     capture it half-turned.

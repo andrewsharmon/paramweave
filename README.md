@@ -153,13 +153,13 @@ Corner relief for milling: Finger Joint Panel and Kerf Fit Test nodes have a
 lets square fingers seat fully.
 
 Frames: select nodes and press Ctrl+G (⌘G), or right-click → **Frame Selected
-Nodes**, to wrap them in a labelled, coloured frame. Drag a frame by its title
+Nodes**, to wrap them in a labeled, colored frame. Drag a frame by its title
 bar to move everything inside it; drag the corner grip to resize. Select a
-frame to edit its label, colour and note; **Add Comment Here** makes a note-only
+frame to edit its label, color and note; **Add Comment Here** makes a note-only
 frame. Delete removes just the frame. Ctrl+D on a frame copies it with its
 contents.
 
-![Finger-box example organised into frames](docs/images/finger-box-frames.png)
+![Finger-box example organized into frames](docs/images/finger-box-frames.png)
 
 Cut files: **ParamWeave → Export Cut Files…** (toolbar, menu, or right-click the
 canvas) lays every Sketch node flat on a sheet and saves a **DXF** (R12, mm, one

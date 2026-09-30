@@ -35,8 +35,8 @@ def _find_object(doc, key: str):
     if len(matches) == 1:
         return matches[0]
     if matches:
-        raise ValueError(f"{len(matches)} objects are labelled {key!r}; use the object's internal name")
-    raise ValueError(f"no document object named or labelled {key!r}")
+        raise ValueError(f"{len(matches)} objects are labeled {key!r}; use the object's internal name")
+    raise ValueError(f"no document object named or labeled {key!r}")
 
 
 def eval_document_value(doc, node, _inputs):

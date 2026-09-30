@@ -247,7 +247,7 @@ class FrameTests(unittest.TestCase):
                 GraphModel.from_dict({"schema_version": 2, "nodes": [], "edges": [], "frames": [bad]})
         with self.assertRaises(GraphValidationError):
             GraphModel.from_dict({"schema_version": 2, "nodes": [], "edges": [], "frames": {}})
-        # Tiny frames are clamped; unknown colours survive a round trip.
+        # Tiny frames are clamped; unknown colors survive a round trip.
         g = GraphModel.from_dict({"schema_version": 2, "nodes": [], "edges": [], "frames": [dict(base, rect=[0, 0, 1, 1], color="teal")]})
         frame = next(iter(g.frames.values()))
         self.assertEqual([0.0, 0.0, 80.0, 50.0], frame.rect)

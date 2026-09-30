@@ -183,7 +183,7 @@ def duplicate(names, new_names, labels):
     )
     by_label = {w.model.nodes[i].label: w.model.nodes[i] for i in new}
     for old, new_name, label in zip(names, new_names, labels):
-        # Copies are labelled "<original> <n>"; match exactly so "A" never claims "A solid 2".
+        # Copies are labeled "<original> <n>"; match exactly so "A" never claims "A solid 2".
         (copy,) = [n for lbl, n in by_label.items() if re.fullmatch(re.escape(N[old].label) + r" \d+", lbl)]
         N[new_name] = copy
         set_text(new_name, "__label__", label)

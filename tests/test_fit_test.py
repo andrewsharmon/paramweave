@@ -148,7 +148,7 @@ class CouponSetTests(unittest.TestCase):
         for angle in (15.0, 45.0, 90.0, 135.0):
             geo = fit_test.coupon_set(angle=angle, count=3)
             # Every pair's outline elements stay inside its own turned rectangle,
-            # so check the pairs' centres are at least one gap apart along a separating axis.
+            # so check the pairs' centers are at least one gap apart along a separating axis.
             circles = [e["center"] for e in geo["elements"] if e["type"] == "circle"]
             self.assertEqual(2 * (1 + 2 + 3), len(circles))
             import itertools

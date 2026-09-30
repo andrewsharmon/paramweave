@@ -695,7 +695,7 @@ def _frames():
     r2 = w.model.frames[frame.id].rect
     expect(abs(r2[2] - r[2] - 150) < 10 and abs(r2[3] - r[3] - 60) < 10, f"resize gave {r2} from {r}")
 
-    # Edit label and colour through the property panel.
+    # Edit label and color through the property panel.
     w.scene.select_node(a.id)
     w.scene.clearSelection()
     w.scene.frame_items[frame.id].setSelected(True)
@@ -797,7 +797,7 @@ def _export_cut_files():
 
     QtCore.QTimer.singleShot(50, close_dialog)
     result = w.export_cut_files_dialog()
-    expect(result is None, "cancelled dialog should export nothing")
+    expect(result is None, "canceled dialog should export nothing")
     expect(seen.get("title") == "Export Cut Files", f"dialog not shown: {seen}")
     expect(seen.get("values") == [5.0, 600.0], f"dialog defaults {seen.get('values')}")
     App.closeDocument(doc.Name)

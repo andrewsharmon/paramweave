@@ -27,7 +27,9 @@ A finger's width, which sets how tight the joint is, comes from the two cuts alo
 On a perfect machine all three sets would fit best at the same value. On real machines they often don't:
 
 - **The beam spot is not perfectly round.** Mirror misalignment, a tilted or dirty lens, or astigmatism make the focused spot slightly elliptical, so the cut is wider in one direction than the other.
-- **CO₂ lasers are polarised.** A linearly polarised beam cuts differently parallel and perpendicular to the polarisation, which gives direction-dependent kerf, especially in metals and thick stock.
+- **CO₂ lasers are polarized.** A linearly polarized beam cuts differently parallel and perpendicular to the polarization, which gives direction-dependent kerf, especially in metals and thick stock.
+- **Diode laser spots are rectangular, not round.** A laser diode emits from a thin stripe, so its beam diverges much faster across the stripe than along it and focuses to an elongated spot, often several times longer than it is wide. The kerf is narrow when the cut runs along the long side of the spot and wide when it runs across it, so 0° and 90° can differ a lot, and 45° falls in between.
+- **Combined (multi-diode) modules add their own pattern.** Higher-power diode heads combine two, four or more diodes, side by side or through polarization and spatial beam combiners. The combined spot is the overlap of several stripes. If they are not perfectly aligned or focused to the same point, the spot becomes wider, uneven or doubled in one direction, and the kerf changes with cut direction even more than with a single diode. Fixed-focus and adjustable-focus modules behave differently too, and the pattern can shift as the head warms up or after the module is refocused.
 - **The two axes behave differently.** The gantry's X and Y axes differ in moving mass, belt length and stretch, backlash, acceleration limits and steps-per-mm calibration. Scale or backlash errors show up as a different effective kerf per axis.
 - **Diagonals combine both.** At 45° both motors move at once. Axis-to-axis mismatch, small squareness errors and the cutter's speed at corners all show up there, and nowhere else.
 - **The material has a direction.** Plywood grain and extruded acrylic can char or melt differently along and across the sheet.
@@ -127,8 +129,8 @@ A router or CNC mill cuts with a round tool. It can't cut a sharp *inside* corne
 |---|---|---|
 | `none` | sharp corners | laser, waterjet, knife: the default |
 | `dogbone` | a circle on the corner's bisector, biting equally into both edges | the general-purpose choice; smallest relief |
-| `tbone_depth` | a circle centred on the slot bottom: the relief goes deeper into the part, finger and slot walls stay straight | tight joints: the walls that carry the fit keep full contact, and the relief is hidden behind the mating part |
-| `tbone_side` | a circle centred on the wall: the relief widens the slot near its bottom | the relief must not go deeper, e.g. slots near a panel edge |
+| `tbone_depth` | a circle centered on the slot bottom: the relief goes deeper into the part, finger and slot walls stay straight | tight joints: the walls that carry the fit keep full contact, and the relief is hidden behind the mating part |
+| `tbone_side` | a circle centered on the wall: the relief widens the slot near its bottom | the relief must not go deeper, e.g. slots near a panel edge |
 
 Each relief circle passes exactly through the sharp corner, so the tool reaches it. The 3D view shows it: set **Tool diameter** to the tool you will use (here 2 mm), pick a style from the dropdown, and Evaluate.
 
@@ -136,12 +138,12 @@ Each relief circle passes exactly through the sharp corner, so the tool reaches 
 
 ![dogbone: relief on the bisector, into both edges (close-up of the first pair, 2 mm tool)](images/kerf_07_dogbone_closeup.png)
 
-![tbone_depth: relief centred on the slot bottom, walls straight](images/kerf_07_tbone_depth_closeup.png)
+![tbone_depth: relief centered on the slot bottom, walls straight](images/kerf_07_tbone_depth_closeup.png)
 
-![tbone_side: relief centred on the walls, slot widened at its bottom](images/kerf_07_tbone_side_closeup.png)
+![tbone_side: relief centered on the walls, slot widened at its bottom](images/kerf_07_tbone_side_closeup.png)
 
 The index holes are also made at least 0.5 mm wider than the tool, so a mill can cut them. If the tool is too large for a finger, slot or wall, the node reports an error naming the edge length instead of producing an uncuttable outline. Use a smaller tool or wider fingers.
 
-With a mill, the CAM software normally compensates for the tool radius, so keep `kerf` for the *fit* allowance you want (often 0 or a few hundredths of a millimetre) and run the same test to find it. The three orientations still matter: mill deflection and axis backlash are also direction-dependent.
+With a mill, the CAM software normally compensates for the tool radius, so keep `kerf` for the *fit* allowance you want (often 0 or a few hundredths of a millimeter) and run the same test to find it. The three orientations still matter: mill deflection and axis backlash are also direction-dependent.
 
 Picking from the dropdown is an ordinary graph edit, so Undo/Redo work, and the choice is saved in the `.FCStd`.

@@ -192,7 +192,7 @@ def _s10():
     if os.path.exists(path):
         os.remove(path)
     doc = App.ActiveDocument
-    # FreeCAD stamps new documents "All rights reserved"; the project licence
+    # FreeCAD stamps new documents "All rights reserved"; the project license
     # is undecided (see LICENSE_STATUS.md), so the example claims none.
     doc.License = ""
     doc.LicenseURL = ""

@@ -113,6 +113,8 @@ def inline(text: str) -> str:
             esc = html.escape(part)
             esc = re.sub(r"\*\*(.+?)\*\*", r"<b>\1</b>", esc)
             esc = re.sub(r"(?<![\w*])\*(?!\s)(.+?)(?<!\s)\*(?![\w*])", r"<i>\1</i>", esc)
+            # Unicode subscript digits (CO₂) have no glyph in most fonts; use real subscripts.
+            esc = re.sub("[₀-₉]+", lambda m: "<sub>" + "".join(str(ord(c) - 0x2080) for c in m.group()) + "</sub>", esc)
             out.append(esc)
     return "".join(out)
 

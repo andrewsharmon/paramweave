@@ -76,7 +76,7 @@ class PropertyPanel(QtWidgets.QScrollArea):
             self.set_node(self.node_id)
 
     def set_frame(self, frame_id):
-        """Edit a frame's label, colour and note."""
+        """Edit a frame's label, color and note."""
         from paramweave.app.model import FRAME_COLORS
 
         form = self._new_form()

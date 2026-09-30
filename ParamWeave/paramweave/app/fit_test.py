@@ -24,7 +24,7 @@ from paramweave.app import cutfile
 from paramweave.app import sketch_model as sm
 
 MAX_COUNT = 12
-MARK_PITCH_MIN = 3.0  # centre spacing of the index holes (mm), before tool allowance
+MARK_PITCH_MIN = 3.0  # center spacing of the index holes (mm), before tool allowance
 
 
 def kerf_values(kerf_start: float, kerf_step: float, count: int) -> List[float]:
@@ -107,7 +107,7 @@ def coupon_set(
         marks += _marks(i + 1, width / 2.0, coupon_height + gap + (coupon_height + thickness) / 2.0, mark_r, pitch_marks)
         pair = sm.combine([tab, slot, *marks])
         if angle:
-            # Turn about the pair's centre so every pair lands on the same row.
+            # Turn about the pair's center so every pair lands on the same row.
             pair = sm.rotate(pair, angle, width / 2.0, pair_height / 2.0)
         parts.append(sm.translate(pair, i * pitch, 0.0))
     geo = sm.combine(parts)

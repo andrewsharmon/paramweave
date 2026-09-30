@@ -114,7 +114,7 @@ class GraphEdge:
 
 @dataclass
 class GraphFrame:
-    """A labelled box that groups the nodes placed inside it.
+    """A labeled box that groups the nodes placed inside it.
 
     Membership is geometric: a node belongs to the frame when its position
     (top-left corner) lies inside ``rect``. Frames carry no graph semantics and
@@ -152,7 +152,7 @@ class GraphFrame:
         color = data.get("color", "gray")
         if not isinstance(label, str) or not isinstance(note, str) or not isinstance(color, str):
             raise GraphValidationError(f"{where}: label, note and color must be strings")
-        # Unknown colour names (e.g. from a newer version) render as gray but
+        # Unknown color names (e.g. from a newer version) render as gray but
         # are kept so saving does not lose them.
         return cls(frame_id, label, _frame_rect(data.get("rect"), where), color, note)
 

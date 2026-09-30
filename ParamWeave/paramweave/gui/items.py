@@ -183,7 +183,7 @@ class ConnectionItem(QtWidgets.QGraphicsPathItem):
 
 FRAME_HEADER_H = 30.0
 FRAME_HANDLE = 14.0
-# name -> (fill colour, border/title colour). The fill is drawn translucent
+# name -> (fill color, border/title color). The fill is drawn translucent
 # (FRAME_FILL_ALPHA) so wires and the canvas show through.
 FRAME_STYLE = {
     "gray": ("#8a8f98", "#aab0ba"),
@@ -219,7 +219,7 @@ class _FrameHandle(QtWidgets.QGraphicsRectItem):
 
 
 class FrameItem(QtWidgets.QGraphicsRectItem):
-    """A labelled box behind nodes. Dragging its title bar carries its contents."""
+    """A labeled box behind nodes. Dragging its title bar carries its contents."""
 
     def __init__(self, frame):
         super().__init__(0.0, 0.0, frame.rect[2], frame.rect[3])

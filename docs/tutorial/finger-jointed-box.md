@@ -73,7 +73,7 @@ Add eight **Values → Number** nodes, one for each constant. For each one, set 
 
 Stack them in a column at the left of the canvas. These are the only numbers you will ever need to change.
 
-**Kerf k** is the width of material your laser or cutter burns away. Leave it at 0 while modelling. Before cutting, set it to your machine's kerf (often 0.1–0.2 mm): every panel outline then grows by half the kerf, so the fingers and slots come out at their nominal size and the joints fit tight.
+**Kerf k** is the width of material your laser or cutter burns away. Leave it at 0 while modeling. Before cutting, set it to your machine's kerf (often 0.1–0.2 mm): every panel outline then grows by half the kerf, so the fingers and slots come out at their nominal size and the joints fit tight.
 
 ![Eight Number nodes; Thickness t is selected and its value is shown in the property panel](images/02_constants_graph.png)
 
@@ -207,5 +207,5 @@ All six panels regenerate in place, without duplicating any objects:
 - **Open-top box:** delete the three lid nodes and set **mode_top** to `flat` on the four wall profiles.
 - **Drive from a spreadsheet:** replace a Number node with **Values → Document Variable** that points at a Spreadsheet alias.
 - **Cut it:** set **Kerf k** to your cutter's kerf (for example 0.15) before exporting; Export Cut Files evaluates the graph for you. The 3D panels then overlap slightly, which is expected: the sketches are now cutting outlines, grown by half the kerf.
-- **Organise with frames:** select a panel's three nodes and press **Ctrl+G** (⌘G) to wrap them in a frame; give it a label and colour in the property panel. Dragging the frame's title bar moves the whole panel chain, and Ctrl+D on a frame copies the chain inside it.
-- **Shortcut:** **ParamWeave → Example: Finger-Jointed Box** inserts this same graph in one step, already organised into frames.
+- **Organize with frames:** select a panel's three nodes and press **Ctrl+G** (⌘G) to wrap them in a frame; give it a label and color in the property panel. Dragging the frame's title bar moves the whole panel chain, and Ctrl+D on a frame copies the chain inside it.
+- **Shortcut:** **ParamWeave → Example: Finger-Jointed Box** inserts this same graph in one step, already organized into frames.
