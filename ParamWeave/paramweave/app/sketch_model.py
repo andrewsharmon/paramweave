@@ -481,7 +481,123 @@ def offset_rectilinear(points: List[List[float]], distance: float) -> List[List[
     return out
 
 
-def finger_panel(width: float, height: float, thickness: float, sides, kerf: float = 0.0) -> Dict[str, Any]:
+# Inside-corner relief for round cutters (see relieved_outline). ``none`` keeps
+# sharp corners (laser, knife); the others add a notch of the tool's radius.
+CORNER_STYLES = ("none", "dogbone", "tbone_depth", "tbone_side")
+
+
+def _unit(a, b):
+    dx, dy = b[0] - a[0], b[1] - a[1]
+    length = math.hypot(dx, dy)
+    if length <= 1e-12:
+        raise SketchDataError("outline has a zero-length edge")
+    return dx / length, dy / length, length
+
+
+def relieved_outline(
+    points: List[List[float]], style: str = "none", radius: float = 0.0, depth_edges: Iterable[int] = ()
+) -> Dict[str, Any]:
+    """Closed counter-clockwise right-angled outline with its inside corners relieved.
+
+    A round end mill of radius ``radius`` cannot cut a sharp inside corner; it
+    leaves a fillet that stops a mating square part seating fully. Each
+    reflex (inside) corner gets a circular notch of that radius whose edge
+    passes through the sharp corner point, so the cutter reaches it:
+
+    * ``dogbone``: notch centred on the corner's bisector, biting equally into
+      both edges (``sqrt(2) * radius`` along each).
+    * ``tbone_depth`` / ``tbone_side``: notch centred on one edge only, so the
+      other edge stays straight up to the corner. ``depth_edges`` lists the
+      indices ``i`` of edges ``points[i] -> points[i + 1]`` that run into the
+      material (finger/slot walls). ``tbone_depth`` notches the edge that is
+      *not* a depth edge (the slot bottom), extending the relief deeper and
+      keeping the walls straight; ``tbone_side`` notches the depth edge
+      (the wall), widening the slot near its bottom.
+    * ``none``: sharp corners (a plain closed polyline).
+    """
+    if style not in CORNER_STYLES:
+        raise SketchDataError(f"corner style must be one of {', '.join(CORNER_STYLES)}, got {style!r}")
+    if style == "none":
+        return polyline(points, True)
+    if isinstance(radius, bool) or not isinstance(radius, (int, float)) or not math.isfinite(radius) or radius <= 0:
+        raise SketchDataError(f"corner style {style!r} needs a tool diameter > 0")
+    n = len(points)
+    depth = {i % n for i in depth_edges}
+    edges = [_unit(points[i], points[(i + 1) % n]) for i in range(n)]
+    # Per vertex: (entry point, exit point, arc element or None, arc starts at entry?)
+    corners = []
+    used = [0.0] * n  # edge length consumed by reliefs at each end
+    for i in range(n):
+        v = points[i]
+        d1x, d1y, _ = edges[i - 1]
+        d2x, d2y, _ = edges[i]
+        if abs(d1x * d2x + d1y * d2y) > 1e-9:
+            raise SketchDataError("corner relief needs right-angled corners")
+        if d1x * d2y - d1y * d2x > 0:  # left turn: outside corner, cut sharp
+            corners.append((v, v, None, True))
+            continue
+        if style == "dogbone":
+            s = math.sqrt(2.0) * radius
+            entry = [v[0] - s * d1x, v[1] - s * d1y]
+            exit_ = [v[0] + s * d2x, v[1] + s * d2y]
+            center = [v[0] + radius * (d2x - d1x) / math.sqrt(2.0), v[1] + radius * (d2y - d1y) / math.sqrt(2.0)]
+            probe = v
+            used[i - 1] += s
+            used[i] += s
+        else:
+            in_is_depth, out_is_depth = (i - 1) % n in depth, i in depth
+            notch_in = out_is_depth if in_is_depth != out_is_depth else True
+            if style == "tbone_side" and in_is_depth != out_is_depth:
+                notch_in = not notch_in
+            if notch_in:
+                center = [v[0] - radius * d1x, v[1] - radius * d1y]
+                entry, exit_ = [v[0] - 2 * radius * d1x, v[1] - 2 * radius * d1y], v
+                probe = [center[0] - radius * d1y, center[1] + radius * d1x]  # left of the edge: material
+                used[i - 1] += 2 * radius
+            else:
+                center = [v[0] + radius * d2x, v[1] + radius * d2y]
+                entry, exit_ = v, [v[0] + 2 * radius * d2x, v[1] + 2 * radius * d2y]
+                probe = [center[0] - radius * d2y, center[1] + radius * d2x]
+                used[i] += 2 * radius
+        a_entry = math.degrees(math.atan2(entry[1] - center[1], entry[0] - center[0]))
+        a_exit = math.degrees(math.atan2(exit_[1] - center[1], exit_[0] - center[0]))
+        a_probe = math.degrees(math.atan2(probe[1] - center[1], probe[0] - center[0]))
+        # Sketch arcs run counter-clockwise; take the side that bulges into the material.
+        forward = (a_probe - a_entry) % 360.0 < (a_exit - a_entry) % 360.0
+        start, end = (a_entry, a_exit) if forward else (a_exit, a_entry)
+        arc_el = {"type": "arc", "center": center, "radius": float(radius), "start_angle": start, "end_angle": end}
+        corners.append((entry, exit_, arc_el, forward))
+    for i, (_dx, _dy, length) in enumerate(edges):
+        if used[i] > length - 1e-9:
+            raise SketchDataError(
+                f"tool diameter {2 * radius:g} is too large for {style} relief on a {length:g} long edge; "
+                "use a smaller tool or wider fingers"
+            )
+    elements: List[Dict[str, Any]] = []
+    ends = []  # (path-start ref, path-end ref) per element, in outline order
+    for i in range(n):
+        entry, exit_, arc_el, forward = corners[i]
+        if arc_el is not None:
+            ends.append(([len(elements), START if forward else END], [len(elements), END if forward else START]))
+            elements.append(arc_el)
+        nxt = corners[(i + 1) % n][0]
+        ends.append(([len(elements), START], [len(elements), END]))
+        elements.append({"type": "line", "start": list(exit_), "end": list(nxt), "construction": False})
+    constraints = [
+        {"type": "Coincident", "refs": [ends[k][1], ends[(k + 1) % len(ends)][0]]} for k in range(len(ends))
+    ]
+    return validate({"elements": elements, "constraints": constraints})
+
+
+def finger_panel(
+    width: float,
+    height: float,
+    thickness: float,
+    sides,
+    kerf: float = 0.0,
+    corner_style: str = "none",
+    tool_diameter: float = 0.0,
+) -> Dict[str, Any]:
     """Closed outline of a ``width`` x ``height`` panel with finger-jointed edges.
 
     ``sides`` gives ``(mode, count)`` for bottom, right, top, left, walking
@@ -492,6 +608,10 @@ def finger_panel(width: float, height: float, thickness: float, sides, kerf: flo
     outward by ``kerf / 2`` so that, after cutting, fingers and slots come out
     at their nominal size and joints fit tight. The drawn panel is therefore
     ``kerf`` larger than nominal in each direction.
+
+    ``corner_style`` relieves the inside corners of fingers and slots for a
+    round cutter of ``tool_diameter`` (see ``relieved_outline``); finger and
+    slot walls are the depth edges, so ``tbone_depth`` deepens slots.
     """
     if not width > 0 or not height > 0:
         raise SketchDataError("panel width and height must be > 0")
@@ -515,6 +635,7 @@ def finger_panel(width: float, height: float, thickness: float, sides, kerf: flo
         return [sx + dx * u - dy * d, sy + dy * u + dx * d]
 
     points: List[List[float]] = []
+    walls: List[int] = []  # edges running into the panel (finger/slot walls)
     for s in range(4):
         # Corner: the previous side's last inset measured along this side,
         # this side's first inset measured inward.
@@ -524,5 +645,6 @@ def finger_panel(width: float, height: float, thickness: float, sides, kerf: flo
             if depths[s][j] != depths[s][j + 1]:
                 u = segment * (j + 1)
                 points.append(at(s, u, depths[s][j]))
+                walls.append(len(points) - 1)
                 points.append(at(s, u, depths[s][j + 1]))
-    return polyline(offset_rectilinear(points, kerf / 2.0), True)
+    return relieved_outline(offset_rectilinear(points, kerf / 2.0), corner_style, tool_diameter / 2.0, walls)

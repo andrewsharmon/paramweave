@@ -16,7 +16,7 @@ Each panel ends up as an ordinary FreeCAD sketch plus an extruded solid. The ske
 
 - **Add a node:** right-click an empty spot on the graph canvas, open a category and pick the node. It appears where you clicked.
 - **Select a node:** click its title bar. The property panel below the graph shows its settings. Ctrl-click (⌘-click on macOS) adds more nodes to the selection, or drag a box around them.
-- **Edit a setting:** click the field in the property panel, type, and press Return.
+- **Edit a setting:** click the field in the property panel, type, and press Return. Settings with a fixed set of values (edge modes, sketch plane, corner style) are dropdowns: pick the value.
 - **Rename a node:** edit its **Label** field. Labels are only names; renaming never breaks wires.
 - **Wire two nodes:** click an *output* port dot (right side of a node), then an *input* port dot (left side). Esc cancels a half-made wire. Wiring into an input that already has a wire replaces the old wire.
 - **Wired settings:** every number setting has an input port with the same name. Once wired, the field shows *driven by input* and the wire's value is used.
@@ -106,7 +106,7 @@ The three "Odd fingers" expressions round any count up to the next odd number, s
    - Odd fingers L → **fingers_bottom** and **fingers_top**
    - Odd fingers W → **fingers_right** and **fingers_left**
 
-The wired fields now read *driven by input*. Because every other panel starts as a duplicate of this chain, they all inherit the thickness and kerf wires. The edge modes are plain text fields further down the property panel.
+The wired fields now read *driven by input*. Because every other panel starts as a duplicate of this chain, they all inherit the thickness and kerf wires. The edge modes are dropdowns further down the property panel. The **corner_style** dropdown below them stays at `none` for laser cutting; see the kerf fit test tutorial for milling corner relief.
 
 ![The bottom profile wired to the constants; the property panel scrolled to its edge modes](images/04_bottom_profile_graph.png)
 

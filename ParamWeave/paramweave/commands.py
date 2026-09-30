@@ -43,6 +43,12 @@ def _insert_finger_box():
     _ws().insert_example(finger_box.build, "Finger-jointed box")
 
 
+def _insert_kerf_test():
+    from paramweave.examples import kerf_test
+
+    _ws().insert_example(kerf_test.build, "Kerf fit test")
+
+
 def register_commands():
     global _REGISTERED
     if _REGISTERED:
@@ -75,6 +81,12 @@ def register_commands():
             "Example: Finger-Jointed Box",
             "Insert a fully parameterized finger-jointed box graph (edit the constants, then Evaluate)",
             _insert_finger_box,
+        ),
+        "ParamWeave_ExampleKerfTest": _Command(
+            "Example: Kerf Fit Test",
+            "Insert finger-joint test coupons over a range of kerf values at 0, 90 and 45 degrees; "
+            "cut them to find the kerf that fits",
+            _insert_kerf_test,
         ),
         "ParamWeave_Evaluate": _Command("Evaluate Graph", "Evaluate all graph dependencies", lambda: _ws().evaluate()),
     }

@@ -6,7 +6,7 @@ Pure Python: no FreeCAD or Qt imports, so it can be unit tested directly.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Any, Callable, Dict, List, Optional
+from typing import Any, Callable, Dict, List, Optional, Tuple
 
 
 @dataclass(frozen=True)
@@ -35,6 +35,10 @@ class NodeSpec:
     # recomputed "shape") plus an optional "_warning".
     generated_type: str = "Part::Feature"
     materialize: Optional[Callable[..., Optional[Dict[str, Any]]]] = None
+    # Text parameters restricted to a fixed set of values, shown as a dropdown
+    # in the property panel: ``{param key: (allowed, values)}``. Evaluation
+    # still validates the value, since graph files are untrusted.
+    choices: Dict[str, Tuple[str, ...]] = field(default_factory=dict)
     # Placeholder specs stand in for unregistered type_ids found in a file.
     placeholder: bool = False
 

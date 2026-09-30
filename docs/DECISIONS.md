@@ -152,3 +152,14 @@ Angles are degrees in graph data and radians only at the Sketcher boundary.
 
 ### Project license: Apache-2.0
 **Decision:** ParamWeave is licensed Apache-2.0 (`LICENSE`, `NOTICE`, `package.xml`). It is permissive, widely approved for use inside organizations, carries an explicit patent grant, and is compatible with FreeCAD (LGPL-2.1+), PySide/Qt and the FreeCAD Addon Index. Extension packages that build on ParamWeave live in their own repositories under their own licenses and register node types through the explicit registry; graph files that use an extension's nodes must still open without it, with those nodes marked missing. Contributions are accepted under Apache-2.0 (inbound = outbound).
+
+## 2026-09-30 kerf fit test and corner relief
+
+### The kerf test is built from Finger Joint Panels, one node per orientation
+**Decision:** `Kerf Fit Test` (`sketch.kerf_test`, pure logic in `paramweave/app/fit_test.py`) builds its coupons with the same `finger_panel` code as real parts, so the test measures exactly the kerf compensation the box uses. One node makes one orientation. The example graph has three nodes (0°, 90°, 45°) so each orientation is its own sketch and cut group. The angle matters because a finger's width comes from cuts perpendicular to the joint edge, and lasers often have direction-dependent kerf (elliptical spot, polarisation, per-axis mechanics). Pairs are marked with index holes rather than engraved text, so any cutter that can cut the outline can cut the marks.
+
+### Pairs are turned in place and packed as strips
+**Decision:** Each pair is rotated about its own centre and the pairs are laid in one row along X. The pitch is the smallest separation (bounding box, or either axis of the turned pair rectangle grown by the largest kerf) that keeps a `gap` between pairs, so 45° pairs nest. Every orientation is therefore a short, wide strip, and the strips stack into one rectangular sheet. Rotating a whole set as a block was dropped: the 45° set's bounding box wasted most of the sheet.
+
+### Corner relief is part of the outline, chosen by a dropdown
+**Decision:** `relieved_outline` in `sketch_model` replaces each reflex (inside) corner of a right-angled outline with a circular arc of the tool radius that passes through the sharp corner: `dogbone` (centre on the bisector) or T-bones (centre on one edge). `finger_panel` records which edges are finger/slot walls, so `tbone_depth` notches the slot bottom (relief goes deeper, walls stay straight) and `tbone_side` notches the wall. Relief is applied after the kerf offset. A tool too large for an edge is an error, never a silently clipped relief. Style values live in `NodeSpec.choices`, which the property panel shows as a dropdown (also used for edge modes and sketch planes). Evaluation still validates the value, because graph files are untrusted, and an unknown stored value is shown rather than silently replaced.

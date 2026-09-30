@@ -47,6 +47,7 @@ class ParamWeaveWorkbench(Gui.Workbench):
                 "Separator",
                 "ParamWeave_ExportCutFiles",
                 "ParamWeave_ExampleFingerBox",
+                "ParamWeave_ExampleKerfTest",
                 "Separator",
                 "ParamWeave_Evaluate",
             ],

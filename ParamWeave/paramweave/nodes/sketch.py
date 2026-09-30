@@ -10,6 +10,7 @@ from __future__ import annotations
 import FreeCAD as App
 import Part
 
+from paramweave.app import fit_test
 from paramweave.app import sketch_adapter as sa
 from paramweave.app import sketch_model as sm
 from paramweave.nodes.core import _number, _positive, _require
@@ -95,6 +96,36 @@ def eval_finger_panel(_doc, node, _inputs):
             _positive(p.get("thickness", 3.0), "thickness"),
             sides,
             _number(p.get("kerf", 0.0), "kerf"),
+            str(p.get("corner_style", "none")).strip(),
+            _tool_diameter(p),
+        )
+    }
+
+
+def _tool_diameter(p) -> float:
+    value = _number(p.get("tool_diameter", 0.0), "tool_diameter")
+    if value < 0:
+        raise ValueError("tool_diameter must be >= 0")
+    return value
+
+
+def eval_kerf_test(_doc, node, _inputs):
+    p = node.params
+    return {
+        "geometry": fit_test.coupon_set(
+            thickness=_positive(p.get("thickness", 3.0), "thickness"),
+            finger_width=_positive(p.get("finger_width", 10.0), "finger_width"),
+            fingers=p.get("fingers", 3),
+            coupon_height=_positive(p.get("coupon_height", 20.0), "coupon_height"),
+            kerf_start=_number(p.get("kerf_start", 0.0), "kerf_start"),
+            kerf_step=_number(p.get("kerf_step", 0.05), "kerf_step"),
+            count=p.get("count", 5),
+            angle=_number(p.get("angle", 0.0), "angle"),
+            x=_n(node, "x"),
+            y=_n(node, "y"),
+            gap=_positive(p.get("gap", 4.0), "gap"),
+            corner_style=str(p.get("corner_style", "none")).strip(),
+            tool_diameter=_tool_diameter(p),
         )
     }
 
@@ -233,7 +264,7 @@ def _geometry_modifier(type_id, title, evaluate, params, extra_inputs=()):
     )
 
 
-def _element(type_id, title, evaluate, params):
+def _element(type_id, title, evaluate, params, choices=None):
     return NodeSpec(
         type_id,
         title,
@@ -241,7 +272,12 @@ def _element(type_id, title, evaluate, params):
         outputs=[PortSpec("geometry", GEOMETRY)],
         default_params=params,
         evaluate=evaluate,
+        choices=choices or {},
     )
+
+
+# 1/8" end mill: a common choice for 3 mm sheet.
+DEFAULT_TOOL_DIAMETER = 3.175
 
 
 def register_sketch_nodes() -> None:
@@ -280,7 +316,31 @@ def register_sketch_nodes() -> None:
                 "kerf": 0.0,
                 **{f"fingers_{side}": 5 for side in sm.PANEL_SIDES},
                 **{f"mode_{side}": "out" for side in sm.PANEL_SIDES},
+                "corner_style": "none",
+                "tool_diameter": DEFAULT_TOOL_DIAMETER,
             },
+            {"corner_style": sm.CORNER_STYLES, **{f"mode_{side}": sm.FINGER_MODES for side in sm.PANEL_SIDES}},
+        ),
+        _element(
+            "sketch.kerf_test",
+            "Kerf Fit Test",
+            eval_kerf_test,
+            {
+                "thickness": 3.0,
+                "finger_width": 10.0,
+                "fingers": 3,
+                "coupon_height": 20.0,
+                "kerf_start": 0.0,
+                "kerf_step": 0.05,
+                "count": 5,
+                "angle": 0.0,
+                "x": 0.0,
+                "y": 0.0,
+                "gap": 4.0,
+                "corner_style": "none",
+                "tool_diameter": DEFAULT_TOOL_DIAMETER,
+            },
+            {"corner_style": sm.CORNER_STYLES},
         ),
         NodeSpec(
             "sketch.combine",
@@ -354,6 +414,7 @@ def register_sketch_nodes() -> None:
             inputs=[PortSpec("geometry", GEOMETRY), PortSpec("placement", "Placement", required=False)],
             outputs=[PortSpec("shape", "CAD.Shape"), PortSpec("object", "Any")],
             default_params={"plane": "XY", "offset": 0.0},
+            choices={"plane": tuple(sa.PLANES)},
             evaluate=eval_sketch,
             generates_object=True,
             generated_type="Sketcher::SketchObject",

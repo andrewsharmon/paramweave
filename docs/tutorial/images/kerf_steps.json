@@ -1,0 +1,56 @@
+[
+  {
+    "step": 1,
+    "title": "Start a new document with the graph pane",
+    "images": []
+  },
+  {
+    "step": 2,
+    "title": "Add the constants",
+    "images": [
+      "kerf_02_constants_graph.png"
+    ]
+  },
+  {
+    "step": 3,
+    "title": "Add the expressions that size and stack the coupon sets",
+    "images": [
+      "kerf_03_expressions_graph.png"
+    ]
+  },
+  {
+    "step": 4,
+    "title": "Add the 0\u00b0 coupon set, its sketch and its solid",
+    "images": [
+      "kerf_04_set0_graph.png",
+      "kerf_04_set0_3d.png"
+    ]
+  },
+  {
+    "step": 5,
+    "title": "Duplicate the chain for the 90\u00b0 and 45\u00b0 sets",
+    "images": [
+      "kerf_05_all_sets_graph.png",
+      "kerf_05_all_sets_top.png"
+    ]
+  },
+  {
+    "step": 6,
+    "title": "Save the file and export the cut sheet",
+    "images": [
+      "kerf_06_cut_sheet.png",
+      "kerf-fit-test.FCStd",
+      "kerf-fit-test.svg"
+    ]
+  },
+  {
+    "step": 7,
+    "title": "For milling: pick a corner style from the dropdown",
+    "images": [
+      "kerf_07_dogbone_graph.png",
+      "kerf_07_dogbone_closeup.png",
+      "kerf_07_tbone_depth_closeup.png",
+      "kerf_07_tbone_side_closeup.png"
+    ]
+  }
+]

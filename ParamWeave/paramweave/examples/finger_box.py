@@ -34,6 +34,9 @@ DEFAULTS = {
     "fingers_length": 7,
     "fingers_width": 5,
     "fingers_height": 3,
+    # Inside-corner relief for milling ("none" for lasers); see sketch_model.CORNER_STYLES.
+    "corner_style": "none",
+    "tool_diameter": 3.175,
 }
 
 ODD = "max(1, 2 * floor(a / 2) + 1)"
@@ -116,6 +119,7 @@ def build(model: GraphModel, origin=(0.0, 0.0), lid: bool = True, **overrides) -
     for i, (key, label, w, h, fingers, modes, plane, offset) in enumerate(panels):
         row = i * ROW
         params = {"width": 1.0, "height": 1.0, "thickness": 1.0, "kerf": 0.0}
+        params.update(corner_style=values["corner_style"], tool_diameter=float(values["tool_diameter"]))
         params.update({f"fingers_{s}": 1 for s in sides})
         params.update({f"mode_{s}": m for s, m in zip(sides, modes)})
         node(f"{key}_profile", "sketch.finger_panel", f"{label} profile", 2, row, params)

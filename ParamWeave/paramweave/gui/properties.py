@@ -10,6 +10,7 @@ import json
 import math
 
 from paramweave.gui.qt import QtCore, QtWidgets
+from paramweave.nodes.registry import registry
 
 
 class _NoteEdit(QtWidgets.QPlainTextEdit):
@@ -130,6 +131,8 @@ class PropertyPanel(QtWidgets.QScrollArea):
         label_edit.editingFinished.connect(lambda nid=node_id, w=label_edit: self._label_finished(nid, w))
         form.addRow("Label", label_edit)
         wired = {e.dst_port for e in self.model.incoming(node_id)}
+        spec = registry.find(node.type_id)
+        choices = spec.choices if spec is not None else {}
         for key, value in node.params.items():
             if key in wired and isinstance(value, (int, float)) and not isinstance(value, bool):
                 # The wire overrides the stored value at evaluation time.
@@ -143,6 +146,16 @@ class PropertyPanel(QtWidgets.QScrollArea):
                 widget = QtWidgets.QPlainTextEdit(json.dumps(value, indent=2, sort_keys=True))
                 widget.setReadOnly(True)
                 widget.setMaximumHeight(120)
+            elif key in choices and isinstance(value, str):
+                widget = QtWidgets.QComboBox()
+                widget.addItems(list(choices[key]))
+                if value not in choices[key]:
+                    # Keep an unknown stored value visible rather than silently replacing it.
+                    widget.addItem(value)
+                widget.setCurrentText(value)
+                widget.currentTextChanged.connect(
+                    lambda text, nid=node_id, k=key: self._choice_changed(nid, k, text)
+                )
             elif isinstance(value, bool):
                 widget = QtWidgets.QCheckBox()
                 widget.setChecked(value)
@@ -163,6 +176,11 @@ class PropertyPanel(QtWidgets.QScrollArea):
             return
         if text != node.label:
             self.labelEdited.emit(node_id, text)
+
+    def _choice_changed(self, node_id, key, text):
+        node = self.model.nodes.get(node_id) if self.model is not None else None
+        if node is not None and node.params.get(key) != text:
+            self.parameterEdited.emit(node_id, key, text)
 
     def _scalar_finished(self, node_id, key, widget):
         node = self.model.nodes.get(node_id) if self.model is not None else None

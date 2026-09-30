@@ -138,6 +138,20 @@ are forced odd by expressions, and each panel is a **Finger Joint Panel →
 Sketch → Extrude** chain, so every panel is also an ordinary sketch you can
 export for cutting. The graph is built by `paramweave/examples/finger_box.py`.
 
+Kerf fit test: **ParamWeave → Example: Kerf Fit Test** inserts a cuttable test
+sheet for finding your kerf value. It has five finger-joint coupon pairs over a
+range of kerf values, in three orientations (0°, 90°, 45°), because lasers often
+cut X moves, Y moves and diagonals with different kerf. The pairs are rotated in
+place and packed into three strips that stack into one rectangle (about 250 × 135
+mm). Tutorial with rationale and how to read the results:
+[docs/tutorial/kerf-fit-test.md](docs/tutorial/kerf-fit-test.md) (PDF alongside;
+ready-to-cut `kerf-fit-test.svg`).
+
+Corner relief for milling: Finger Joint Panel and Kerf Fit Test nodes have a
+**corner_style** dropdown (`none`, `dogbone`, `tbone_depth`, `tbone_side`) and a
+`tool_diameter`, which add circular relief at inside corners so a round end mill
+lets square fingers seat fully.
+
 Frames: select nodes and press Ctrl+G (⌘G), or right-click → **Frame Selected
 Nodes**, to wrap them in a labelled, coloured frame. Drag a frame by its title
 bar to move everything inside it; drag the corner grip to resize. Select a

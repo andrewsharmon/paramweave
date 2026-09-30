@@ -11,7 +11,7 @@ from paramweave.app import cutfile
 from paramweave.app.evaluator import OK, GraphEvaluator, find_generated
 from paramweave.app.model import GraphModel
 from paramweave.app.persistence import GraphStore
-from paramweave.examples import finger_box
+from paramweave.examples import finger_box, kerf_test
 from paramweave.nodes.core import register_core_nodes
 
 register_core_nodes()
@@ -202,6 +202,105 @@ class FingerBoxTests(unittest.TestCase):
         g = GraphModel()
         ids = finger_box.build(g, lid=False, fingers_height=5)
         self._check_box(g, ids, 160.0, 100.0, 70.0, 3.0, lid=False)
+
+
+class KerfTestFileTests(unittest.TestCase):
+    """The FCStd shipped with the kerf test tutorial opens and re-evaluates in place."""
+
+    def setUp(self):
+        self.tmp = tempfile.mkdtemp(prefix="pw_kerf_")
+        self.path = os.path.join(self.tmp, "kerf.FCStd")
+        shutil.copy(os.path.join(os.environ["PARAMWEAVE_ROOT"], "docs", "tutorial", "kerf-fit-test.FCStd"), self.path)
+
+    def tearDown(self):
+        for name in list(App.listDocuments()):
+            App.closeDocument(name)
+        shutil.rmtree(self.tmp, ignore_errors=True)
+
+    def test_opens_and_re_evaluates(self):
+        doc = App.openDocument(self.path)
+        sketches = [o for o in doc.Objects if o.TypeId == "Sketcher::SketchObject"]
+        self.assertEqual(3, len(sketches))
+        model = GraphStore(doc).load()
+        self.assertEqual(18, len(model.nodes))
+        styles = {n.params["corner_style"] for n in model.nodes.values() if n.type_id == "sketch.kerf_test"}
+        self.assertEqual({"none"}, styles, "the shipped file is the laser version")
+        count = len(doc.Objects)
+        ev = GraphEvaluator(doc, model)
+        ev.evaluate_all()
+        self.assertEqual({OK}, {r.status for r in ev.results.values()})
+        self.assertEqual(count, len(doc.Objects))
+        self.assertEqual("", doc.License)
+
+
+class KerfTestExampleTests(unittest.TestCase):
+    def setUp(self):
+        self.doc = App.newDocument("PWKerfTest")
+
+    def tearDown(self):
+        for name in list(App.listDocuments()):
+            App.closeDocument(name)
+
+    def _evaluate(self, g):
+        ev = GraphEvaluator(self.doc, g)
+        out = ev.evaluate_all()
+        bad = {g.nodes[k].label: r.message for k, r in ev.results.items() if r.status != OK}
+        self.assertEqual({}, bad)
+        return out
+
+    def test_three_orientations_cut_as_separate_solids(self):
+        g = GraphModel()
+        ids = kerf_test.build(g)
+        out = self._evaluate(g)
+        boxes = []
+        for angle in ("0", "90", "45"):
+            shape = out[ids[f"set{angle}"]]["shape"]
+            self.assertTrue(shape.isValid())
+            # Five pairs of coupons per orientation.
+            self.assertEqual(10, len(shape.Solids))
+            boxes.append(shape.BoundBox)
+            sketch = find_generated(self.doc, ids[f"set{angle}_sketch"])
+            self.assertEqual("Sketcher::SketchObject", sketch.TypeId)
+        # Sets are stacked without overlapping in the 3D view.
+        for a, b in zip(boxes, boxes[1:]):
+            self.assertLess(a.YMax, b.YMin)
+        # Strips stack into a compact sheet: coupons cover over half of it.
+        sheet = boxes[0]
+        for b in boxes[1:]:
+            sheet.add(b)
+        area = sum(out[ids[f"set{a}"]]["shape"].Volume for a in ("0", "90", "45")) / 3.0
+        self.assertGreater(area / (sheet.XLength * sheet.YLength), 0.5)
+        self.assertLess(sheet.XLength, 260.0)
+        self.assertLess(sheet.YLength, 160.0)
+
+    def test_corner_styles_build_valid_solids(self):
+        from paramweave.app import sketch_model as sm
+
+        g = GraphModel()
+        ids = kerf_test.build(g, tool_diameter=2.0)
+        volumes = {}
+        for style in sm.CORNER_STYLES:
+            for angle in ("0", "90", "45"):
+                g.nodes[ids[f"set{angle}_coupons"]].params["corner_style"] = style
+            out = self._evaluate(g)
+            shape = out[ids["set45"]]["shape"]
+            self.assertTrue(shape.isValid(), style)
+            self.assertEqual(10, len(shape.Solids), style)
+            volumes[style] = shape.Volume
+        # Relief removes material; T-bones remove more than dogbones.
+        self.assertLess(volumes["dogbone"], volumes["none"])
+        self.assertLess(volumes["tbone_depth"], volumes["dogbone"])
+        self.assertAlmostEqual(volumes["tbone_depth"], volumes["tbone_side"], places=4)
+
+    def test_box_with_dogbones_exports(self):
+        g = GraphModel()
+        ids = finger_box.build(g, corner_style="dogbone", tool_diameter=2.0)
+        out = self._evaluate(g)
+        for key in PANELS:
+            self.assertTrue(out[ids[key]]["shape"].isValid())
+            self.assertEqual(1, len(out[ids[key]]["shape"].Solids))
+        panels = [(k, out[ids[f"{k}_sketch"]]["geometry"]) for k in PANELS]
+        self.assertIn("ARC", cutfile.export(panels, "dxf"))
 
 
 if __name__ == "__main__":

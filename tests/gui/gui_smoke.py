@@ -566,6 +566,38 @@ def _finger_box_example():
     pump()
 
 
+@check("kerf fit test example inserts via its command; corner style is a dropdown")
+def _kerf_test_example():
+    w = ws()
+    doc = App.newDocument("PWKerfTestSmoke")
+    pump()
+    w.bind_active_document(force=True)
+    pump()
+    Gui.runCommand("ParamWeave_ExampleKerfTest")
+    pump(30)
+    expect(len(w.model.nodes) == 18, f"expected 18 nodes, found {len(w.model.nodes)}")
+    bad = {w.model.nodes[n].label: node_status(n) for n in w.model.nodes if node_status(n) != "ok"}
+    expect(not bad, f"non-ok nodes: {bad}")
+    sketches = [o for o in doc.Objects if o.TypeId == "Sketcher::SketchObject"]
+    expect(len(sketches) == 3, f"expected 3 coupon sketches, found {len(sketches)}")
+    (coupons,) = [n for n in w.model.nodes.values() if n.label == "Coupons 45°"]
+    w.scene.set_nodes_selected([coupons.id], True, exclusive=True)
+    w.properties.set_node(coupons.id)
+    pump()
+    combos = [c for c in w.properties._body.findChildren(QtWidgets.QComboBox) if c.property("paramweave_key") == "corner_style"]
+    expect(len(combos) == 1, "corner_style is not shown as a dropdown")
+    items = [combos[0].itemText(i) for i in range(combos[0].count())]
+    expect(items == ["none", "dogbone", "tbone_depth", "tbone_side"], f"dropdown offers {items}")
+    combos[0].setCurrentText("dogbone")
+    pump(5)
+    expect(w.model.nodes[coupons.id].params["corner_style"] == "dogbone", "dropdown pick did not reach the graph")
+    doc.undo()
+    pump(5)
+    expect(w.model.nodes[coupons.id].params["corner_style"] == "none", "dropdown pick is not undoable")
+    App.closeDocument(doc.Name)
+    pump()
+
+
 @check("Ctrl+D duplicates selected nodes even after a property editor had focus")
 def _duplicate_shortcut():
     w = ws()
