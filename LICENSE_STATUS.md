@@ -1,19 +1,10 @@
-# License status — decision intentionally pending
+# License status
 
-No project license has been selected yet. Do **not** publish this starter as though it grants reuse rights until a license is chosen.
+ParamWeave's core is licensed under the **Apache License 2.0** (`LICENSE`, `NOTICE`), decided 2026-09-30. See `docs/DECISIONS.md` ("Project license") for the rationale.
 
-The stated preference is: **as permissive as practical while remaining compatible with FreeCAD and selected dependencies**.
-
-Likely choices to evaluate:
-
-- **MIT** — shortest/permissive; very easy downstream reuse.
-- **BSD-3-Clause** — similarly permissive with a non-endorsement clause.
-- **Apache-2.0** — permissive plus explicit patent terms; longer text.
-- **LGPL-3.0-or-later** — stronger reciprocal requirements than desired, but may be considered if future integration choices warrant it.
-
-The initial scaffold intentionally avoids vendoring or requiring NodeGraphQt/QtNodes. It uses Qt/PySide through FreeCAD's own runtime APIs.
-
-FreeCAD itself has LGPL licensing, while individual optional backends/add-ons can have other licenses. Before distribution through FreeCAD's Addon Manager, choose a project license and replace `ParamWeave/package.xml.template` with a real `package.xml` that identifies that license.
+- Apache-2.0 is compatible with FreeCAD (LGPL-2.1+) and PySide/Qt (LGPL): the workbench only imports them at runtime and bundles no FreeCAD or Qt code.
+- Extension packages that build on ParamWeave are separate packages with their own licenses; they are not committed to this repository.
+- Contributions to the core are accepted under Apache-2.0 (inbound = outbound).
 
 ## Dependency policy during prototype
 

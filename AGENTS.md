@@ -17,7 +17,7 @@ This repository is a starter, not a frozen design. Preserve the architectural bo
 - Current stable FreeCAD on macOS is the first verification platform; code must remain platform-agnostic.
 - Graph state embedded in the `.FCStd` document.
 - Initial node set includes constructive nodes, not only references.
-- License not selected yet; prefer permissive-compatible dependencies and avoid introducing restrictive dependencies without an explicit decision.
+- Core license is Apache-2.0 (see `LICENSE_STATUS.md`); prefer permissive-compatible dependencies and avoid introducing restrictive dependencies without an explicit decision.
 - FreeCAD document/OpenCascade objects are authoritative for exact CAD geometry.
 - Graph model must be UI-independent and serializable.
 
@@ -136,6 +136,6 @@ GUI bug you fix, and record newly tested environments in `docs/COMPATIBILITY.md`
 
 Treat embedded graph JSON as untrusted input when opening files from others. Never `eval()` expressions or import arbitrary modules named by graph data. Node `type_id` values must resolve only through an explicit registry.
 
-## License rule until decided
+## License rule
 
-Do not add a project LICENSE file or copyright header claiming a license until the owner chooses one. Record dependency licenses in `LICENSE_STATUS.md`. Prefer MIT/BSD/Apache-style dependencies. If adding LGPL/GPL dependencies, document whether they are linked/imported or invoked out-of-process and why the dependency is needed.
+The core is Apache-2.0. Do not add per-file copyright/license headers unless the owner asks. Keep extension packages out of this repository. Record dependency licenses in `LICENSE_STATUS.md`. Prefer MIT/BSD/Apache-style dependencies. If adding LGPL/GPL dependencies, document whether they are linked/imported or invoked out-of-process and why the dependency is needed; GPL dependencies must not be imported by the core.

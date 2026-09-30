@@ -147,3 +147,8 @@ Angles are degrees in graph data and radians only at the Sketcher boundary.
 
 ### Own minimal writers, no new dependency
 **Decision:** `paramweave/app/cutfile.py` (pure Python) writes AutoCAD R12 ASCII DXF (LINE/ARC/CIRCLE, `$INSUNITS` mm, one layer per panel) and SVG (mm-sized, red 0.01 mm hairline strokes, one titled group per panel) directly from `Sketch.Geometry` values, so no Draft/ezdxf dependency is needed. Panels are placed in sketch-local coordinates and shelf-packed (tallest first) within a sheet width with a gap. Construction elements and points are skipped; kerf is already in the outlines. SVG keeps DXF's y-up orientation so both files show the same layout. A FreeCAD console test reads the DXF back with FreeCAD's own importer and checks edge count and total length.
+
+## 2026-09-30 license
+
+### Project license: Apache-2.0
+**Decision:** ParamWeave is licensed Apache-2.0 (`LICENSE`, `NOTICE`, `package.xml`). It is permissive, widely approved for use inside organizations, carries an explicit patent grant, and is compatible with FreeCAD (LGPL-2.1+), PySide/Qt and the FreeCAD Addon Index. Extension packages that build on ParamWeave live in their own repositories under their own licenses and register node types through the explicit registry; graph files that use an extension's nodes must still open without it, with those nodes marked missing. Contributions are accepted under Apache-2.0 (inbound = outbound).

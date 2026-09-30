@@ -12,7 +12,7 @@ This folder is a coding-agent handoff package for a native FreeCAD workbench tha
 - Initial scope includes both **reference nodes** and **constructive geometry nodes**.
 - Graph state is **embedded in the `.FCStd` file**.
 - FreeCAD remains authoritative for exact CAD geometry; the graph is authoritative for graph topology and graph-owned parameters.
-- License is intentionally undecided. The desired eventual license is as permissive as practical while remaining compatible with FreeCAD and dependencies.
+- Licensed under the Apache License 2.0 (see `LICENSE`).
 - Avoid hard dependencies on third-party node-editor libraries in the first prototype. The starter uses FreeCAD's bundled Qt/PySide graphics framework behind a replaceable UI layer.
 
 ## What is already scaffolded
@@ -174,7 +174,6 @@ paramweave/
 └── ParamWeave/                 # copy/symlink this directory into FreeCAD's Mod directory
     ├── Init.py
     ├── InitGui.py
-    ├── package.xml.template
     └── paramweave/
         ├── app/              # graph model, persistence, references, evaluator
         ├── gui/              # dock, graph scene, Qt items, selection/document sync
