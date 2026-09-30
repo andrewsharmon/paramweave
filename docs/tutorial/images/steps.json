@@ -1,0 +1,86 @@
+[
+  {
+    "step": 1,
+    "title": "Open the ParamWeave workbench and the graph pane",
+    "images": [
+      "01_workbench_window.png"
+    ]
+  },
+  {
+    "step": 2,
+    "title": "Add the constants",
+    "images": [
+      "02_constants_graph.png"
+    ]
+  },
+  {
+    "step": 3,
+    "title": "Add the expressions and wire the constants into them",
+    "images": [
+      "03_expressions_graph.png"
+    ]
+  },
+  {
+    "step": 4,
+    "title": "Add the bottom panel profile",
+    "images": [
+      "04_bottom_profile_graph.png"
+    ]
+  },
+  {
+    "step": 5,
+    "title": "Turn the profile into a sketch and extrude it",
+    "images": [
+      "05_bottom_panel_graph.png",
+      "05_bottom_panel_3d.png"
+    ]
+  },
+  {
+    "step": 6,
+    "title": "Duplicate the bottom chain to make the lid",
+    "images": [
+      "06_lid_graph.png",
+      "06_lid_3d.png"
+    ]
+  },
+  {
+    "step": 7,
+    "title": "Duplicate again for the front wall and change it",
+    "images": [
+      "07_front_graph.png",
+      "07_front_3d.png"
+    ]
+  },
+  {
+    "step": 8,
+    "title": "Duplicate the front wall to make the back wall",
+    "images": [
+      "08_back_graph.png",
+      "08_back_3d.png"
+    ]
+  },
+  {
+    "step": 9,
+    "title": "Duplicate the front wall for the left wall and change it",
+    "images": [
+      "09_left_graph.png",
+      "09_left_3d.png"
+    ]
+  },
+  {
+    "step": 10,
+    "title": "Duplicate the left wall to make the right wall",
+    "images": [
+      "10_complete_window.png",
+      "10_complete_3d.png"
+    ]
+  },
+  {
+    "step": 11,
+    "title": "Change a constant and re-evaluate",
+    "images": [
+      "11_thicker_graph.png",
+      "11_thicker_3d.png"
+    ]
+  }
+]

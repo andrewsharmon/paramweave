@@ -82,6 +82,22 @@ def eval_polygon(_doc, node, _inputs):
     }
 
 
+def eval_finger_panel(_doc, node, _inputs):
+    p = node.params
+    sides = []
+    for side in sm.PANEL_SIDES:
+        mode = str(p.get(f"mode_{side}", "flat")).strip()
+        sides.append((mode, p.get(f"fingers_{side}", 1)))
+    return {
+        "geometry": sm.finger_panel(
+            _positive(p.get("width", 100.0), "width"),
+            _positive(p.get("height", 60.0), "height"),
+            _positive(p.get("thickness", 3.0), "thickness"),
+            sides,
+        )
+    }
+
+
 def eval_combine(_doc, _node, inputs):
     return {"geometry": sm.combine(inputs.get(k) for k in ("a", "b", "c", "d"))}
 
@@ -194,6 +210,11 @@ def eval_extrude(_doc, node, inputs):
         raise ValueError("extrude needs at least one closed wire")
     face = Part.makeFace(wires, "Part::FaceMakerBullseye")
     normal = face.Faces[0].normalAt(0, 0)
+    # A face's normal follows its wire winding. Sketch shapes carry the sketch
+    # placement, so extrude along the sketch's +Z (the plane normal) instead.
+    plane_z = shape.Placement.Rotation.multVec(App.Vector(0, 0, 1))
+    if normal.dot(plane_z) < 0:
+        normal = normal * -1
     if node.params.get("reversed", False):
         normal = normal * -1
     return {"shape": face.extrude(normal * length)}
@@ -246,6 +267,18 @@ def register_sketch_nodes() -> None:
             "Regular Polygon",
             eval_polygon,
             {"cx": 0.0, "cy": 0.0, "radius": 10.0, "sides": 6, "rotation": 0.0, "construction": False},
+        ),
+        _element(
+            "sketch.finger_panel",
+            "Finger Joint Panel",
+            eval_finger_panel,
+            {
+                "width": 100.0,
+                "height": 60.0,
+                "thickness": 3.0,
+                **{f"fingers_{side}": 5 for side in sm.PANEL_SIDES},
+                **{f"mode_{side}": "out" for side in sm.PANEL_SIDES},
+            },
         ),
         NodeSpec(
             "sketch.combine",

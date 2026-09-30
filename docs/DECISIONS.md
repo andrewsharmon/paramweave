@@ -101,3 +101,25 @@ Angles are degrees in graph data and radians only at the Sketcher boundary.
 
 ### Variables are explicit wires
 **Decision:** Expressions see only their wired inputs, not graph-wide names, so evaluation order stays visible in the graph. Document-level variables come from **Document Variable** (Spreadsheet alias / VarSet property), resolved by internal name first, then by a unique label; an ambiguous label is an error.
+
+## 2026-09-30 finger-jointed box example
+
+### Finger joints are a sketch element, not a solid feature
+**Decision:** `Finger Joint Panel` produces one closed sketch outline per panel (edge modes `out`/`in`/`flat`/`recessed`, odd finger counts so edges are symmetric). Joints are made by giving mating edges opposite modes and the same count, so panels stay flat 2D profiles that can be exported for cutting. There is no kerf/clearance allowance yet.
+
+### Extrude follows the sketch plane
+**Decision:** Extrude now orients its direction by the input shape's placement +Z (the sketch normal) rather than the wire winding, so profiles extrude predictably to the side the sketch offset implies.
+
+### Examples are pure graph builders
+**Decision:** Example graphs live in `paramweave/examples/` as functions that add nodes/edges to a `GraphModel` (no FreeCAD import), exposed through menu commands and `GraphWorkspace.insert_example`. Their tests check real geometry: the finger box's panels must tile the box shell exactly (sum of volumes equals the shell and equals the fused volume).
+
+## 2026-09-30 GUI editing and tutorials
+
+### Duplicate and re-wiring
+**Decision:** Ctrl+D (⌘D) / "Duplicate Selected" copies the selected nodes, the wires among them, and the wires feeding them from outside, so a copied chain stays driven by the same constants. Wiring into an occupied input replaces the old wire in one undoable step (a failed replacement, e.g. a cycle, restores the old wire).
+
+### The graph view claims its own shortcuts
+**Decision:** `GraphView` accepts its keys (Ctrl/⌘+D, Delete, Backspace, F, Esc) in Qt's ShortcutOverride phase. Without this, FreeCAD's application shortcuts intermittently swallowed Ctrl+D while the graph had focus (found while scripting the tutorial).
+
+### Tutorials are executable
+**Decision:** Each tutorial has a GUI script (`tests/gui/tutorial_*.py`) that performs every step through GUI interactions (context-menu add signal, port clicks, typing in the property panel, Ctrl-click, Ctrl+D, Delete, dragging, the Evaluate button), verifies the resulting geometry, and regenerates the tutorial's screenshots. The Markdown source is rendered to PDF by `tools/build_tutorial_pdf.py`, so text, pictures and the verified workflow stay in sync.

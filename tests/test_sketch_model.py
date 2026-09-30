@@ -107,6 +107,34 @@ class SketchModelTests(unittest.TestCase):
         with self.assertRaises(sm.SketchDataError):
             sm.element_quantity(rect, 9, "length")
 
+    def _area(self, geo):
+        pts = [e["start"] for e in geo["elements"]]
+        return sum(p[0] * q[1] - q[0] * p[1] for p, q in zip(pts, pts[1:] + pts[:1])) / 2
+
+    def test_finger_panel_outline(self):
+        geo = sm.finger_panel(30, 10, 2, [("out", 3), ("flat", 1), ("flat", 1), ("in", 1)])
+        self.assertAlmostEqual(300 - 10 * 2 - 2 * 10, self._area(geo))
+        self.assertEqual([2.0, 0.0], geo["elements"][0]["start"])
+        # Closed chain: every end meets the next start.
+        els = geo["elements"]
+        for a, b in zip(els, els[1:] + els[:1]):
+            self.assertEqual(a["end"], b["start"])
+
+    def test_mating_panels_are_complementary(self):
+        # A slotted edge and a fingered edge with the same count remove/keep
+        # exactly complementary strips of depth t.
+        out = sm.finger_panel(50, 20, 2, [("out", 5), ("flat", 1), ("flat", 1), ("flat", 1)])
+        inn = sm.finger_panel(50, 20, 2, [("in", 5), ("flat", 1), ("flat", 1), ("flat", 1)])
+        self.assertAlmostEqual(50 * 20 * 2 - 50 * 2, self._area(out) + self._area(inn))
+
+    def test_finger_panel_validation(self):
+        with self.assertRaisesRegex(sm.SketchDataError, "odd"):
+            sm.finger_panel(30, 10, 2, [("out", 4)] + [("flat", 1)] * 3)
+        with self.assertRaisesRegex(sm.SketchDataError, "mode"):
+            sm.finger_panel(30, 10, 2, [("sideways", 3)] + [("flat", 1)] * 3)
+        with self.assertRaisesRegex(sm.SketchDataError, "thickness"):
+            sm.finger_panel(30, 10, 5, [("flat", 1)] * 4)
+
     def test_parse_refs(self):
         self.assertEqual([[0, 2], [1, 1]], sm.parse_refs("0:2 1:1"))
         self.assertEqual([[0], [-1]], sm.parse_refs("0, -1"))

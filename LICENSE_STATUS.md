@@ -24,3 +24,10 @@ FreeCAD itself has LGPL licensing, while individual optional backends/add-ons ca
 5. Keep future GPL solver integrations (Gmsh/Elmer/OpenFOAM, etc.) behind clear adapters/process boundaries where technically appropriate; get legal review before making licensing claims.
 
 This is project-planning information, not legal advice.
+
+## Recorded dependencies
+
+| Dependency | License | Used by | Kind |
+|---|---|---|---|
+| reportlab | BSD-3-Clause | `tools/build_tutorial_pdf.py` | Documentation tooling only; not imported by the workbench and not shipped. Install in a throwaway virtualenv. |
+| Pillow | MIT-CMU (HPND) | `tools/build_tutorial_pdf.py` | Same as above. |

@@ -37,6 +37,12 @@ def _ws():
     return workspace()
 
 
+def _insert_finger_box():
+    from paramweave.examples import finger_box
+
+    _ws().insert_example(finger_box.build, "Finger-jointed box")
+
+
 def register_commands():
     global _REGISTERED
     if _REGISTERED:
@@ -59,6 +65,11 @@ def register_commands():
         "ParamWeave_AddFuse": _Command("Add Fuse Node", "Add a Boolean Fuse node", lambda: _ws().add_node("boolean.fuse")),
         "ParamWeave_AddMeasure": _Command(
             "Add Measure Node", "Add a shape measurement node", lambda: _ws().add_node("measure.shape")
+        ),
+        "ParamWeave_ExampleFingerBox": _Command(
+            "Example: Finger-Jointed Box",
+            "Insert a fully parameterized finger-jointed box graph (edit the constants, then Evaluate)",
+            _insert_finger_box,
         ),
         "ParamWeave_Evaluate": _Command("Evaluate Graph", "Evaluate all graph dependencies", lambda: _ws().evaluate()),
     }

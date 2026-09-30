@@ -7,6 +7,7 @@ class GraphView(QtWidgets.QGraphicsView):
     # (type_id, scene position) chosen from the canvas context menu.
     addNodeRequested = QtCore.Signal(str, object)
     referenceRequested = QtCore.Signal(object)
+    duplicateRequested = QtCore.Signal()
 
     def __init__(self, scene, parent=None):
         super().__init__(scene, parent)
@@ -54,6 +55,23 @@ class GraphView(QtWidgets.QGraphicsView):
             return
         super().mouseReleaseEvent(event)
 
+    def _is_own_shortcut(self, event) -> bool:
+        k = event.key()
+        ctrl = bool(event.modifiers() & qenum(QtCore.Qt, "KeyboardModifier", "ControlModifier"))
+        if k == key("Key_D"):
+            return ctrl
+        return k in (key("Key_Delete"), key("Key_Backspace"), key("Key_Escape"), key("Key_F")) and not ctrl
+
+    def event(self, event):
+        # FreeCAD registers application-wide shortcuts (and other docked
+        # widgets may hold them too). Claiming the graph's own keys in the
+        # ShortcutOverride phase makes Qt deliver them to keyPressEvent while
+        # the graph has focus instead of to a global action.
+        if event.type() == qenum(QtCore.QEvent, "Type", "ShortcutOverride") and self._is_own_shortcut(event):
+            event.accept()
+            return True
+        return super().event(event)
+
     def keyPressEvent(self, event):
         k = event.key()
         if k in (key("Key_Delete"), key("Key_Backspace")):
@@ -62,6 +80,11 @@ class GraphView(QtWidgets.QGraphicsView):
             return
         if k == key("Key_Escape"):
             self.scene().cancel_pending_connection()
+            event.accept()
+            return
+        if k == key("Key_D") and event.modifiers() & qenum(QtCore.Qt, "KeyboardModifier", "ControlModifier"):
+            # Ctrl+D (Cmd+D on macOS, where Qt maps Cmd to Control).
+            self.duplicateRequested.emit()
             event.accept()
             return
         if k == key("Key_F"):
@@ -97,5 +120,7 @@ class GraphView(QtWidgets.QGraphicsView):
             action = sub.addAction(title)
             action.triggered.connect(lambda _checked=False, t=type_id: self.addNodeRequested.emit(t, scene_pos))
         menu.addSeparator()
+        if self.scene().selected_node_ids():
+            menu.addAction("Duplicate Selected (Ctrl+D)").triggered.connect(self.duplicateRequested.emit)
         menu.addAction("Frame All (F)").triggered.connect(self.frame_all)
         menu.exec(event.globalPos()) if hasattr(menu, "exec") else menu.exec_(event.globalPos())

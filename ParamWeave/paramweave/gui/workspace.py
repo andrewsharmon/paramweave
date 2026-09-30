@@ -62,6 +62,7 @@ class GraphWorkspace:
         self.scene.connectRequested.connect(self._guarded(self.connect))
         self.scene.nodesMoved.connect(self._guarded(self.move_nodes))
         self.scene.deleteRequested.connect(self._guarded(self.delete))
+        self.view.duplicateRequested.connect(self._guarded(lambda: self.duplicate()))
         self.view.addNodeRequested.connect(self._guarded(lambda t, pos: self.add_node(t, (pos.x(), pos.y()))))
         self.view.referenceRequested.connect(self._guarded(lambda pos: self.add_reference_from_selection((pos.x(), pos.y()))))
         self.properties.parameterEdited.connect(self._guarded(self.set_param))
@@ -267,6 +268,15 @@ class GraphWorkspace:
         self.scene.add_node(node)
         return node
 
+    def insert_example(self, build, label: str):
+        """Add a prebuilt example graph beside the existing nodes and evaluate it."""
+        right = max((n.position[0] for n in self.model.nodes.values()), default=-400.0)
+        with self.edit(f"Insert example: {label}", create_document=True):
+            build(self.model, origin=(right + 400.0, 0.0))
+        self.scene.rebuild()
+        self.evaluate()
+        self.view.frame_all()
+
     def _suggest_position(self):
         center = self.view.mapToScene(self.view.viewport().rect().center())
         # Offset successive nodes so they do not stack exactly on top of each other.
@@ -280,15 +290,42 @@ class GraphWorkspace:
         return self.add_node(REFERENCE_NODE_TYPE, position=position, params={"reference": ref}, label=label)
 
     def connect(self, src_node, src_port, dst_node, dst_port):
+        """Wire an output to an input, replacing any wire already on that input."""
+        replacing = any(e.dst_node == dst_node and e.dst_port == dst_port for e in self.model.edges.values())
         try:
-            with self.edit("Connect"):
-                edge = self.model.connect(src_node, src_port, dst_node, dst_port)
+            with self.edit("Reconnect" if replacing else "Connect"):
+                edge = self.model.connect(src_node, src_port, dst_node, dst_port, replace=True)
         except (ValueError, KeyError) as exc:
             QtWidgets.QToolTip.showText(QtGui.QCursor.pos(), str(exc))
             return None
-        self.scene.add_edge(edge)
+        if replacing:
+            self.scene.rebuild()
+            self.scene.set_statuses(self.statuses)
+        else:
+            self.scene.add_edge(edge)
         self.properties.refresh()  # a wired parameter becomes read-only
         return edge
+
+    def duplicate(self, node_ids=None):
+        """Copy the selected nodes (keeping their input wires) and select the copies."""
+        node_ids = [n for n in (node_ids if node_ids is not None else self.scene.selected_node_ids()) if n in self.model.nodes]
+        if not node_ids:
+            return {}
+        taken = {n.label for n in self.model.nodes.values()}
+
+        def label_for(base):
+            i = 2
+            while f"{base} {i}" in taken:
+                i += 1
+            taken.add(f"{base} {i}")
+            return f"{base} {i}"
+
+        with self.edit("Duplicate"):
+            mapping = self.model.duplicate(node_ids, label_for=label_for)
+        self.scene.rebuild()
+        self.scene.set_statuses(self.statuses)
+        self.scene.set_nodes_selected(list(mapping.values()), True, exclusive=True)
+        return mapping
 
     def move_nodes(self, moved):
         with self.edit("Move node" if len(moved) == 1 else "Move nodes"):

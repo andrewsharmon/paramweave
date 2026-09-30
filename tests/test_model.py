@@ -167,5 +167,46 @@ class UntrustedGraphTests(unittest.TestCase):
         self.assertEqual({}, g.nodes)
 
 
+class EditingOperationTests(unittest.TestCase):
+    def _chain(self):
+        g = GraphModel()
+        c = g.create_node("value.number", "C", (0, 0), {"value": 1.0})
+        a = g.create_node("x.a", "A", (100, 0), {"k": [1]})
+        b = g.create_node("x.b", "B", (200, 0), {})
+        g.connect(c.id, "value", a.id, "w")
+        g.connect(a.id, "out", b.id, "in")
+        return g, c, a, b
+
+    def test_replace_connection(self):
+        g, c, a, b = self._chain()
+        d = g.create_node("value.number", "D", (0, 50), {})
+        with self.assertRaises(GraphValidationError):
+            g.connect(d.id, "value", a.id, "w")
+        g.connect(d.id, "value", a.id, "w", replace=True)
+        self.assertEqual([d.id], [e.src_node for e in g.incoming(a.id)])
+        with self.assertRaises(GraphValidationError):
+            g.connect(d.id, "value", a.id, "w", replace=True)  # identical wire
+
+    def test_failed_replacement_restores_old_wire(self):
+        g, c, a, b = self._chain()
+        with self.assertRaises(GraphValidationError):
+            g.connect(b.id, "out", a.id, "w", replace=True)  # would make a cycle
+        self.assertEqual([c.id], [e.src_node for e in g.incoming(a.id)])
+
+    def test_duplicate_keeps_internal_and_incoming_wires(self):
+        g, c, a, b = self._chain()
+        mapping = g.duplicate([a.id, b.id], offset=(0, 100), label_for=lambda s: s + "2")
+        na, nb = mapping[a.id], mapping[b.id]
+        self.assertEqual("A2", g.nodes[na].label)
+        self.assertEqual([100.0, 100.0], g.nodes[na].position)
+        self.assertEqual([c.id], [e.src_node for e in g.incoming(na)])
+        self.assertEqual([na], [e.src_node for e in g.incoming(nb)])
+        self.assertEqual(5, len(g.nodes))
+        # Params are deep-copied.
+        g.nodes[na].params["k"].append(2)
+        self.assertEqual([1], g.nodes[a.id].params["k"])
+        self.assertEqual(g.to_dict(), GraphModel.from_json(g.to_json()).to_dict())
+
+
 if __name__ == "__main__":
     unittest.main()

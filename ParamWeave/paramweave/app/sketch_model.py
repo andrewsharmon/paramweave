@@ -428,3 +428,66 @@ def element_quantity(geometry: Dict[str, Any], index: int, quantity: str) -> flo
     if quantity not in simple:
         raise SketchDataError(f"a {kind} has no {quantity!r}; choose from {', '.join(['x', 'y', *simple])}")
     return float(simple[quantity])
+
+
+# -- finger joints -----------------------------------------------------------
+
+FINGER_MODES = ("out", "in", "flat", "recessed")
+PANEL_SIDES = ("bottom", "right", "top", "left")
+
+
+def finger_depths(mode: str, count: int, thickness: float) -> List[float]:
+    """Per-segment inset of one panel edge.
+
+    ``out`` starts (and, with an odd count, ends) with a finger at the panel
+    edge; ``in`` starts with a slot inset by ``thickness``; mating edges use
+    opposite modes and the same count. ``flat`` is a plain edge, ``recessed``
+    a plain edge inset by the full thickness.
+    """
+    if mode not in FINGER_MODES:
+        raise SketchDataError(f"finger mode must be one of {', '.join(FINGER_MODES)}, got {mode!r}")
+    if mode == "flat":
+        return [0.0]
+    if mode == "recessed":
+        return [thickness]
+    if isinstance(count, bool) or not isinstance(count, int) or count < 1 or count % 2 == 0:
+        raise SketchDataError(f"finger count must be an odd whole number >= 1, got {count!r}")
+    first, second = (0.0, thickness) if mode == "out" else (thickness, 0.0)
+    return [first if j % 2 == 0 else second for j in range(count)]
+
+
+def finger_panel(width: float, height: float, thickness: float, sides) -> Dict[str, Any]:
+    """Closed outline of a ``width`` x ``height`` panel with finger-jointed edges.
+
+    ``sides`` gives ``(mode, count)`` for bottom, right, top, left, walking
+    counter-clockwise from the origin. Odd counts keep every edge pattern
+    symmetric, so an edge reads the same from either end.
+    """
+    if not width > 0 or not height > 0:
+        raise SketchDataError("panel width and height must be > 0")
+    if not 0 < thickness < min(width, height) / 2.0:
+        raise SketchDataError("thickness must be > 0 and less than half the panel's smaller side")
+    if len(sides) != 4:
+        raise SketchDataError("finger_panel needs four sides: bottom, right, top, left")
+    starts = [(0.0, 0.0), (width, 0.0), (width, height), (0.0, height)]
+    dirs = [(1.0, 0.0), (0.0, 1.0), (-1.0, 0.0), (0.0, -1.0)]
+    lengths = [width, height, width, height]
+    depths = [finger_depths(mode, count, thickness) for mode, count in sides]
+
+    def at(s, u, d):
+        (sx, sy), (dx, dy) = starts[s], dirs[s]
+        # The inward normal of a counter-clockwise side is its direction turned left.
+        return [sx + dx * u - dy * d, sy + dy * u + dx * d]
+
+    points: List[List[float]] = []
+    for s in range(4):
+        # Corner: the previous side's last inset measured along this side,
+        # this side's first inset measured inward.
+        points.append(at(s, depths[s - 1][-1], depths[s][0]))
+        segment = lengths[s] / len(depths[s])
+        for j in range(len(depths[s]) - 1):
+            if depths[s][j] != depths[s][j + 1]:
+                u = segment * (j + 1)
+                points.append(at(s, u, depths[s][j]))
+                points.append(at(s, u, depths[s][j + 1]))
+    return polyline(points, True)

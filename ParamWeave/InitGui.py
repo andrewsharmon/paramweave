@@ -44,6 +44,8 @@ class ParamWeaveWorkbench(Gui.Workbench):
                 "ParamWeave_AddFuse",
                 "ParamWeave_AddMeasure",
                 "Separator",
+                "ParamWeave_ExampleFingerBox",
+                "Separator",
                 "ParamWeave_Evaluate",
             ],
         )

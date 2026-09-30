@@ -25,66 +25,8 @@ try:  # QtTest is not re-exported by FreeCAD's PySide shim.
 except ImportError:  # pragma: no cover - Qt5 builds
     from PySide2 import QtTest
 
-OUT_PATH = os.environ.get("PARAMWEAVE_TEST_OUT") or os.path.join(tempfile.gettempdir(), "paramweave_gui_smoke.jsonl")
-WORK_DIR = os.environ.get("PARAMWEAVE_TEST_WORKDIR") or tempfile.mkdtemp(prefix="paramweave_gui_")
-TIMEOUT_S = float(os.environ.get("PARAMWEAVE_TEST_TIMEOUT", "180"))
-
-_out = open(OUT_PATH, "w")
-_failures = []
-
-
-def record(name, ok, detail=""):
-    _out.write(json.dumps({"check": name, "ok": bool(ok), "detail": detail}) + "\n")
-    _out.flush()
-    if not ok:
-        _failures.append(name)
-
-
-def check(name):
-    def wrap(fn):
-        def run():
-            try:
-                detail = fn()
-                record(name, True, detail or "")
-            except Exception:
-                record(name, False, traceback.format_exc())
-        run.__name__ = fn.__name__
-        CHECKS.append(run)
-        return fn
-    return wrap
-
-
-CHECKS = []
-
-
-def pump(rounds=10):
-    for _ in range(rounds):
-        QtWidgets.QApplication.processEvents()
-        time.sleep(0.005)
-
-
-def expect(cond, message):
-    if not cond:
-        raise AssertionError(message)
-
-
-def left_button():
-    return getattr(getattr(QtCore.Qt, "MouseButton", QtCore.Qt), "LeftButton")
-
-
-def no_modifier():
-    return getattr(getattr(QtCore.Qt, "KeyboardModifier", QtCore.Qt), "NoModifier")
-
-
-def main_window():
-    return Gui.getMainWindow()
-
-
-def paramweave_docks():
-    from paramweave.constants import DOCK_OBJECT_NAME
-
-    return [d for d in main_window().findChildren(QtWidgets.QDockWidget) if d.objectName() == DOCK_OBJECT_NAME]
-
+sys.path.insert(0, os.path.join(os.environ["PARAMWEAVE_ROOT"], "tests", "gui"))
+from gui_harness import *  # noqa: E402,F401,F403  (shared click/record helpers)
 
 # Count observer registrations made by the workbench. This wraps the real
 # FreeCAD registration functions so the observers still work normally.
@@ -106,115 +48,6 @@ def _counting_add_doc(observer, *args):
 
 Gui.Selection.addObserver = _counting_add_sel
 App.addDocumentObserver = _counting_add_doc
-
-
-def ws():
-    from paramweave.gui.workspace import workspace
-
-    return workspace()
-
-
-def node_status(node_id):
-    item = ws().scene.node_items.get(node_id)
-    return getattr(item, "status", None)
-
-
-def no_button():
-    return getattr(getattr(QtCore.Qt, "MouseButton", QtCore.Qt), "NoButton")
-
-
-def send_mouse(view, event_type, pos, button, buttons):
-    """Deliver a mouse event straight to the graph viewport.
-
-    QTest routes synthetic clicks through the window system, and on macOS the
-    first press of a freshly launched (inactive) FreeCAD window is dropped.
-    sendEvent still exercises the real QGraphicsView -> scene -> item dispatch.
-    """
-    from PySide import QtGui
-
-    local = QtCore.QPointF(pos)
-    global_pos = QtCore.QPointF(view.viewport().mapToGlobal(pos))
-    event = QtGui.QMouseEvent(event_type, local, global_pos, button, buttons, no_modifier())
-    QtWidgets.QApplication.sendEvent(view.viewport(), event)
-    pump(2)
-
-
-class _PressProbe(QtCore.QObject):
-    def __init__(self):
-        super().__init__()
-        self.pressed = False
-
-    def eventFilter(self, _obj, event):
-        if event.type() == getattr(QtCore.QEvent, "Type", QtCore.QEvent).MouseButtonPress:
-            self.pressed = True
-        return False
-
-
-REROUTED_PRESSES = []
-
-
-def click_viewport(view, pos, attempts=5):
-    """Click the graph viewport, retrying presses FreeCAD reroutes elsewhere.
-
-    Observed on FreeCAD 1.1.3/macOS: shortly after a 3D view is created, a
-    synthetic press sent to the graph viewport can be re-dispatched by
-    FreeCAD's application-level event filters to the 3D viewer, so the graph
-    never sees it. A real pointer is unaffected. The probe below only checks
-    that the press reached the viewport; if ParamWeave then ignores it, the
-    test still fails.
-    """
-    types = getattr(QtCore.QEvent, "Type", QtCore.QEvent)
-    probe = _PressProbe()
-    view.viewport().installEventFilter(probe)
-    try:
-        for attempt in range(attempts):
-            probe.pressed = False
-            send_mouse(view, types.MouseButtonPress, pos, left_button(), left_button())
-            send_mouse(view, types.MouseButtonRelease, pos, left_button(), no_button())
-            if probe.pressed:
-                return
-            REROUTED_PRESSES.append((pos.x(), pos.y()))
-            pump(20)
-        raise AssertionError(f"press at {pos} never reached the graph viewport")
-    finally:
-        view.viewport().removeEventFilter(probe)
-
-
-def click_scene_point(scene_pos):
-    view = ws().view
-    view.ensureVisible(QtCore.QRectF(scene_pos.x() - 5, scene_pos.y() - 5, 10, 10))
-    pump(3)
-    click_viewport(view, view.mapFromScene(scene_pos))
-
-
-def click_port(node, direction, port):
-    item = ws().scene.node_items[node.id].port(direction, port)
-    expect(item is not None, f"missing port {direction}:{port} on {node.label}")
-    click_scene_point(item.scenePos())
-
-
-def selection_pairs():
-    pairs = []
-    for sel in Gui.Selection.getSelectionEx("", 0):
-        names = list(sel.SubElementNames) or [""]
-        for sub in names:
-            pairs.append((sel.ObjectName, sub))
-    return pairs
-
-
-def resolved_selection_pairs():
-    pairs = []
-    for sel in Gui.Selection.getSelectionEx():
-        names = list(sel.SubElementNames) or [""]
-        for sub in names:
-            pairs.append((sel.Object.Name, sub))
-    return pairs
-
-
-def selected_node_ids():
-    from paramweave.gui.items import NodeItem
-
-    return sorted(i.node_id for i in ws().scene.selectedItems() if isinstance(i, NodeItem))
 
 
 STATE = {}
@@ -707,31 +540,60 @@ def _sketch_driven():
     pump()
 
 
-def _finish():
-    for doc_name in list(App.listDocuments()):
-        try:
-            App.closeDocument(doc_name)
-        except Exception:
-            pass
-    record("__summary__", not _failures, f"failures={_failures}")
-    _out.close()
-    os._exit(1 if _failures else 0)
+@check("finger-jointed box example inserts via its command and evaluates cleanly")
+def _finger_box_example():
+    w = ws()
+    doc = App.newDocument("PWFingerBoxSmoke")
+    pump()
+    w.bind_active_document(force=True)
+    pump()
+    Gui.runCommand("ParamWeave_ExampleFingerBox")
+    pump(30)
+    expect(len(w.model.nodes) == 32, f"expected 32 nodes, found {len(w.model.nodes)}")
+    bad = {w.model.nodes[n].label: node_status(n) for n in w.model.nodes if node_status(n) != "ok"}
+    expect(not bad, f"non-ok nodes: {bad}")
+    sketches = [o for o in doc.Objects if o.TypeId == "Sketcher::SketchObject"]
+    expect(len(sketches) == 6, f"expected 6 panel sketches, found {len(sketches)}")
+    shot = os.environ.get("PARAMWEAVE_SCREENSHOT")
+    if shot:
+        Gui.activeDocument().activeView().viewIsometric()
+        Gui.SendMsgToActiveView("ViewFit")
+        pump(10)
+        main_window().grab().save(shot)
+        # grab() cannot capture the OpenGL viewport; render it separately.
+        Gui.activeDocument().activeView().saveImage(shot.replace(".png", "_3d.png"), 1600, 1100, "Current")
+    App.closeDocument(doc.Name)
+    pump()
 
 
-def _run_all():
-    for fn in CHECKS:
-        fn()
+@check("Ctrl+D duplicates selected nodes even after a property editor had focus")
+def _duplicate_shortcut():
+    w = ws()
+    doc = App.newDocument("PWDupSmoke")
+    pump()
+    w.bind_active_document(force=True)
+    pump()
+    num = w.add_node("value.number", position=(0.0, 0.0))
+    box = w.add_node("primitive.box", position=(260.0, 0.0))
+    w.connect(num.id, "value", box.id, "length")
+    w.scene.select_node(box.id)
+    pump()
+    edits = [e for e in w.properties.findChildren(QtWidgets.QLineEdit) if e.isVisible() and e.isEnabled()]
+    edits[0].setFocus()  # the user was just typing in the property panel
+    pump()
+    ctrl = getattr(getattr(QtCore.Qt, "KeyboardModifier", QtCore.Qt), "ControlModifier")
+    keys = getattr(QtCore.Qt, "Key", QtCore.Qt)
+    for _round in range(3):  # repeated presses must keep working
+        before = len(w.model.nodes)
+        w.view.setFocus()
         pump()
-    _finish()
+        QtTest.QTest.keyClick(w.view, keys.Key_D, ctrl)
+        pump()
+        expect(len(w.model.nodes) == before + 1, f"Ctrl+D made {len(w.model.nodes) - before} nodes")
+    copies = [n for n in w.model.nodes.values() if n.type_id == "primitive.box"]
+    expect(all(any(e.src_node == num.id for e in w.model.incoming(c.id)) for c in copies), "copy lost its input wire")
+    App.closeDocument(doc.Name)
+    pump()
 
 
-def _watchdog():
-    record("__timeout__", False, f"GUI smoke test exceeded {TIMEOUT_S}s")
-    _out.close()
-    os._exit(3)
-
-
-_timer = threading.Timer(TIMEOUT_S, _watchdog)
-_timer.daemon = True
-_timer.start()
-QtCore.QTimer.singleShot(0, _run_all)
+start()

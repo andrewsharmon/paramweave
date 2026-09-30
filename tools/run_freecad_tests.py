@@ -127,10 +127,10 @@ def run_console(bin_dir: Path, tmp: Path, verbose: bool) -> bool:
     return _report(out, "console") and proc.returncode == 0
 
 
-def run_gui(bin_dir: Path, tmp: Path, verbose: bool) -> bool:
+def run_gui(bin_dir: Path, tmp: Path, verbose: bool, script: Path | None = None) -> bool:
     home = make_user_home(tmp / "gui")
     out = tmp / "gui_results.jsonl"
-    cmd = [str(gui_executable(bin_dir)), str(ROOT / "tests" / "gui" / "gui_smoke.py")]
+    cmd = [str(gui_executable(bin_dir)), str(script or ROOT / "tests" / "gui" / "gui_smoke.py")]
     proc = subprocess.run(cmd, env=_env(home, out, tmp), capture_output=True, text=True, timeout=600)
     if verbose or proc.returncode not in (0, 1):
         print(f"[gui] FreeCAD exit code {proc.returncode}")
@@ -143,10 +143,13 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--gui", action="store_true", help="run only the GUI smoke test")
     parser.add_argument("--all", action="store_true", help="run console tests and the GUI smoke test")
+    parser.add_argument("--gui-script", type=Path, help="run this GUI script instead of the smoke test (implies --gui)")
     parser.add_argument("--freecad-bin", help="directory containing freecadcmd/freecad")
     parser.add_argument("--keep", action="store_true", help="keep the temporary directory")
     parser.add_argument("-v", "--verbose", action="store_true", help="print FreeCAD stdout/stderr")
     args = parser.parse_args()
+    if args.gui_script:
+        args.gui = True
 
     bin_dir = find_bin_dir(args.freecad_bin)
     tmp = Path(tempfile.mkdtemp(prefix="paramweave_tests_"))
@@ -155,7 +158,7 @@ def main() -> int:
         if not args.gui or args.all:
             ok = run_console(bin_dir, tmp, args.verbose) and ok
         if args.gui or args.all:
-            ok = run_gui(bin_dir, tmp, args.verbose) and ok
+            ok = run_gui(bin_dir, tmp, args.verbose, args.gui_script and args.gui_script.resolve()) and ok
     finally:
         if args.keep:
             print(f"kept {tmp}")

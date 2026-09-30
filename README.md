@@ -125,6 +125,18 @@ port of the same name. Wire a number into it and it overrides the stored value
   sketch value (`geometry`) or from a referenced document sketch (`object`).
 - **Measure Element**: length/radius/diameter/angle/x/y of one sketch element.
 
+Tutorial: [docs/tutorial/finger-jointed-box.pdf](docs/tutorial/finger-jointed-box.pdf)
+(source: `finger-jointed-box.md`) builds the same box by hand, step by step, with
+pictures. Duplicate selected nodes with Ctrl+D (⌘D), and wire into an occupied
+input to replace its wire.
+
+Example: **ParamWeave → Example: Finger-Jointed Box** inserts a 32-node graph
+for a six-panel finger-jointed box. Edit the constants on the left (length,
+width, height, thickness, fingers along each axis) and Evaluate. Finger counts
+are forced odd by expressions, and each panel is a **Finger Joint Panel →
+Sketch → Extrude** chain, so every panel is also an ordinary sketch you can
+export for cutting. The graph is built by `paramweave/examples/finger_box.py`.
+
 Graph shortcuts: Delete/Backspace removes selected nodes or wires, `F` frames
 all, mouse wheel zooms, middle-drag pans.
 

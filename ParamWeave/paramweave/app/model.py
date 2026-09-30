@@ -6,6 +6,7 @@ with ordinary Python.
 
 from __future__ import annotations
 
+import copy
 from dataclasses import dataclass, field
 import json
 import math
@@ -152,14 +153,22 @@ class GraphModel:
         for eid in doomed:
             self.edges.pop(eid, None)
 
-    def connect(self, src_node: str, src_port: str, dst_node: str, dst_port: str) -> GraphEdge:
+    def connect(
+        self, src_node: str, src_port: str, dst_node: str, dst_port: str, replace: bool = False
+    ) -> GraphEdge:
+        """Add an edge. With ``replace``, a wire already feeding the input is swapped out."""
         if src_node not in self.nodes or dst_node not in self.nodes:
             raise GraphValidationError("Both edge endpoints must exist")
         if src_node == dst_node:
             raise GraphValidationError("Self edges are not supported")
-        for edge in self.edges.values():
+        replaced = None
+        for edge in list(self.edges.values()):
             if edge.dst_node == dst_node and edge.dst_port == dst_port:
-                raise GraphValidationError(f"Input already connected: {dst_node}.{dst_port}")
+                if edge.src_node == src_node and edge.src_port == src_port:
+                    raise GraphValidationError("Duplicate edge")
+                if not replace:
+                    raise GraphValidationError(f"Input already connected: {dst_node}.{dst_port}")
+                replaced = self.edges.pop(edge.id)
             if (
                 edge.src_node == src_node
                 and edge.src_port == src_port
@@ -173,8 +182,29 @@ class GraphModel:
             self.topological_order()
         except GraphValidationError:
             self.edges.pop(edge.id, None)
+            if replaced is not None:
+                self.edges[replaced.id] = replaced
             raise
         return edge
+
+    def duplicate(self, node_ids: Iterable[str], offset=(40.0, 40.0), label_for=None) -> Dict[str, str]:
+        """Copy nodes, the wires among them, and the wires feeding them from outside.
+
+        Keeping incoming wires means a copied sub-graph stays driven by the same
+        constants/upstream nodes. Returns ``{old_id: new_id}``.
+        """
+        ids = [n for n in node_ids if n in self.nodes]
+        mapping: Dict[str, str] = {}
+        for old_id in ids:
+            old = self.nodes[old_id]
+            label = label_for(old.label) if label_for else old.label
+            pos = (old.position[0] + offset[0], old.position[1] + offset[1])
+            mapping[old_id] = self.create_node(old.type_id, label, pos, copy.deepcopy(old.params)).id
+        for edge in list(self.edges.values()):
+            if edge.dst_node in mapping:
+                src = mapping.get(edge.src_node, edge.src_node)
+                self.connect(src, edge.src_port, mapping[edge.dst_node], edge.dst_port)
+        return mapping
 
     def remove_edge(self, edge_id: str) -> None:
         self.edges.pop(edge_id, None)
