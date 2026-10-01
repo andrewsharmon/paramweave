@@ -12,7 +12,7 @@ This folder is a coding-agent handoff package for a native FreeCAD workbench tha
 - Initial scope includes both **reference nodes** and **constructive geometry nodes**.
 - Graph state is **embedded in the `.FCStd` file**.
 - FreeCAD remains authoritative for exact CAD geometry; the graph is authoritative for graph topology and graph-owned parameters.
-- Licensed under the Apache License 2.0 (see `LICENSE`).
+- Copyright 2026 Andrew Harmon. Licensed under the Apache License 2.0 (see `LICENSE` and `NOTICE`).
 - Avoid hard dependencies on third-party node-editor libraries in the first prototype. The starter uses FreeCAD's bundled Qt/PySide graphics framework behind a replaceable UI layer.
 
 ## What is already scaffolded
